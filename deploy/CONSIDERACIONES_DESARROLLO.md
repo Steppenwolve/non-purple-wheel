@@ -210,6 +210,32 @@ deploy\
 
 ---
 
+## Estado del entorno (actualizado 2026-06-17)
+
+- **DDL vigente reinstalado limpio** desde `C:\LOCAL\DESA\Rusty-Cracket\scheme\{BRONZE,ION,SILVER}.sql`
+  (UTF-16). Conteos: BRONZE 206 tablas / 24 rutinas · ION 397 / 224 · SILVER 218 / 216.
+- `ION.dbo.INDICE_REPORTES` **cargado** desde `scheme\INDICE_REPORTES.csv` (210 filas; 212 y 213 ya con
+  los nombres `SECCION_5_LINEAS_CRE` / `SECCION_A_CAT_LINEAS`).
+- **Dos patrones de carga** identificados: **self-select** (este documento, sección 4) y **origen LMDA**
+  (ver `PATRON_ORIGEN_LMDA.md`, ~35-37 SPs que cargan desde `BRONZE.[LMDA].[…]`).
+- **Ubicación**: `deploy/` y `layout/` viven ahora en el repo git
+  `C:\LOCAL\DESA\non-purple-wheel\non-purple-wheel\`; el arnés (scheme/, scripts .py, BD) sigue en
+  `C:\LOCAL\DESA\Rusty-Cracket`.
+
+---
+
 ## Pendientes confirmados
 
 - [ ] Confirmar si la discrepancia de ventana en `119_ENT_PRESTAMOS_VALORES` (SILVER mensual vs ION diaria) requiere corrección.
+- [ ] **Ajustar uno de los ~37 reportes origen LMDA con un layout más nuevo** (el usuario está reuniendo la información).
+- [ ] **Tras la reinstalación limpia**: verificar si el DDL vigente ya incorpora las correcciones que hicimos hoy
+  (080, 081, 083, 132, 155, 156) y los reportes 212/213, para saber qué conviene re-aplicar desde `deploy/`.
+- [ ] **Validación real contra catálogos** (`ION.s3`): diferida hasta que un layout/SP futuro la requiera; definir
+  entonces el mapeo nombre-lógico → tabla física.
+
+### Resueltos (referencia)
+- ✔ Nombre `FECHA_INFO` estandarizado (consideración 11), con **excepciones 132 y 156** que usan `FECHAINFO` literal.
+- ✔ Formato de salida `AAAA/MM/DD` (consideración 12) y orden por `ORDEN` con `FECHA_INFO` al final (consideración 13).
+- ✔ 212/213 realineados a **self-select** (sin BRONZE/LMDA ni zero-pad); el objeto 209 descartado como referencia.
+- ✔ 132 sin columnas ajenas al layout (`FE_CORTE`, `ACT_OPE_VAL`, `PAS_OPE_VAL`); filtro por `FECHAINFO`.
+- ✔ Estructura/uso de `INDICE_REPORTES` (ION) definido y cargado.
