@@ -1,0 +1,33 @@
+{
+  "processor_name": "RC_CTACOB_INSUMO",
+  "enabled": true,
+  "file_pattern": "^FILE_RC_CTACOB_INSUMO.*\\.xlsx?$",
+  "read_options": {
+    "encoding": "utf-8"
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "CONTRATO":      "CONTRATO",
+      "NOMBRE":        "NOMBRE",
+      "IMPORTE":       "IMPORTE",
+      "MONEDA":        "MONEDA",
+      "CLAVE_BANXICO": "CLAVE_BANXICO",
+      "FECHA_REPORTE": "FECHA_REPORTE"
+    },
+    "type_conversions": {
+      "date_fields": ["FECHA_REPORTE"],
+      "numeric_fields": ["IMPORTE"],
+      "allow_empty": false
+    },
+    "final_db_columns": [
+      "ID", "CONTRATO", "NOMBRE", "IMPORTE", "MONEDA", "CLAVE_BANXICO",
+      "FECHA_REPORTE", "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "RC_CTACOB_INSUMO",
+    "load_strategy": "append"
+  }
+}

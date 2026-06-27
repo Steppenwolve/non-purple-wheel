@@ -163,13 +163,21 @@ deploy\
 
 | Operación | Patrón |
 |-----------|--------|
-| Crear tabla | `IF NOT EXISTS (SELECT 1 FROM sys.objects ...)` antes de `CREATE` |
 | Crear SP | `CREATE OR ALTER PROCEDURE` |
-| Agregar columna | `IF NOT EXISTS (INFORMATION_SCHEMA.COLUMNS ...)` antes de `ALTER TABLE ... ADD` |
+| Renombrar tabla | `IF EXISTS (old) AND NOT EXISTS (new)` → `EXEC sp_rename` |
+| Agregar columna | `IF NOT EXISTS (INFORMATION_SCHEMA.COLUMNS ...)` → `ALTER TABLE ... ADD` |
 | Alterar columna | Verificar tipo actual antes de `ALTER TABLE ... ALTER COLUMN` |
+| Crear tabla (solo si no queda otra opción) | `IF NOT EXISTS (SELECT 1 FROM sys.objects ...)` antes de `CREATE` |
 | Eliminar columna (rollback) | `IF EXISTS (INFORMATION_SCHEMA.COLUMNS ...)` antes de `DROP COLUMN` |
 | Eliminar SP (rollback) | `IF EXISTS (sys.objects WHERE name=... AND type='P')` antes de `DROP` |
 | Eliminar tabla (rollback) | `IF EXISTS (sys.objects JOIN sys.schemas ...)` antes de `DROP TABLE` |
+
+### Preferencia ALTER sobre DROP+CREATE
+
+- **Usar `ALTER TABLE`** para agregar, modificar o eliminar columnas. Preserva datos existentes.
+- **Usar `sp_rename`** para renombrar tablas o columnas.
+- **Usar `CREATE OR ALTER PROCEDURE`** siempre para SPs (ya establecido).
+- **`DROP TABLE` + `CREATE TABLE` solo cuando** la reestructuración es tan extensa (muchas columnas nuevas, tipos cambiados, columnas eliminadas) que el ALTER sería más riesgoso o verboso que un recreado limpio. Documentar la razón en el encabezado del script.
 
 ---
 
@@ -183,11 +191,15 @@ deploy\
 
 ## 11. Nomenclatura de la columna de fecha de información
 
-- El nombre estándar de la columna es **`FECHA_INFO`** (con guion bajo), tanto en la tabla `RR` como en los SPs.
-- Si el **layout la nombra `FECHAINFO`** (sin guion bajo), de todas formas se implementa como **`FECHA_INFO`**.
-- En el SP se deja un **comentario** indicando que el layout la nombra `FECHAINFO` y que se estandarizó a `FECHA_INFO`.
-- Reportes cuyo layout usa `FECHAINFO`: **132**, **155**, **156**.
-- **Excepciones confirmadas — reportes 132 y 156**: por indicación del usuario, **132 y 156 conservan el nombre LITERAL `FECHAINFO`** (sin guion bajo) en tabla, SPs y encabezado de salida. **155** sí sigue la regla general (`FECHA_INFO`).
+- Se respeta el **nombre exacto que indica el layout**: si dice `FECHA_INFO` → `FECHA_INFO`; si dice `FECHAINFO` → `FECHAINFO`.
+- Si el layout **no incluye ninguna columna de fecha de información**, la columna `FECHA_INFO` existe únicamente como columna interna de control en la tabla `BRONZE.[LMDA]` y en `SILVER.[RR]` (para filtro de idempotencia), pero **no se expone en el SP de ION**.
+- Reportes aplicados:
+
+| Reporte | Nombre en layout | En tabla SILVER/LMDA | En SP ION |
+|---------|-----------------|----------------------|-----------|
+| 080, 081, 083, 155, 212, 213 | `FECHA_INFO` | `FECHA_INFO` | `FECHA_INFO` |
+| 132, 156 | `FECHAINFO` | `FECHAINFO` | `FECHAINFO` |
+| 093 | *(no aparece)* | `FECHA_INFO` (interna) | no expuesta |
 
 ---
 
@@ -200,13 +212,45 @@ deploy\
 
 ---
 
-## 13. Orden de columnas en la salida del SP de ION
+## 13. Formato de fecha según lo que indica el layout
+
+El formato de salida en el SP ION depende de lo que indique el layout para cada campo:
+
+| Layout dice | Formato de salida | Ejemplo | Función SQL |
+|-------------|------------------|---------|-------------|
+| `AAAA/MM/DD` o sin especificar | `yyyy/MM/dd` | `2026/06/19` | `FORMAT(col, 'yyyy/MM/dd')` |
+| `DD/MM/AAAA` | `dd/MM/yyyy` | `19/06/2026` | `FORMAT(col, 'dd/MM/yyyy')` |
+| `YYYY-MM-DD` o `AAAA-MM-DD` | `yyyy-MM-dd` | `2026-06-19` | `FORMAT(col, 'yyyy-MM-dd')` |
+
+> Regla general (consideración 12): usar `AAAA/MM/DD` salvo que el layout especifique explícitamente otro formato.
+
+---
+
+## 14. Orden de columnas en la salida del SP de ION
 
 - El orden de las columnas en la salida del SP de ION se toma de la columna **`ORDEN`** del layout
   (la enumeración de campos), **no** de `COLUMNA REPORTE APLICA`.
 - Los valores de `ORDEN` **pueden no ser secuenciales** (huecos); aun así se respeta ese orden relativo.
-- Caso típico: `FECHA_INFO` suele ser el **último** `ORDEN` del layout, por lo que va como **última columna**
-  de la salida (aunque `COLUMNA REPORTE APLICA` la ubique antes).
+- Caso típico: `FECHA_INFO` / `FECHAINFO` suele ser el **último** `ORDEN` del layout, por lo que va como
+  **última columna** de la salida (aunque `COLUMNA REPORTE APLICA` la ubique antes).
+
+---
+
+## 15. DEFAULT constraints en tablas importadas del DDL
+
+Las tablas creadas vía `CREATE TABLE` dentro de un script de ajuste incluyen los constraints `DEFAULT (NEWID())` en `ID` y `DEFAULT (GETDATE())` en `FECHA_EXTRACCION`. Sin embargo, las tablas **importadas del DDL original** pueden no tenerlos.
+
+Al trabajar con una tabla existente (patrón ALTER), verificar y agregar si faltan:
+
+```sql
+IF NOT EXISTS (... WHERE o.name='NNN_NOMBRE' AND col.name='ID')
+    ALTER TABLE [RR].[NNN_NOMBRE] ADD CONSTRAINT DF_NNN_ID DEFAULT (NEWID()) FOR [ID];
+
+IF NOT EXISTS (... WHERE o.name='NNN_NOMBRE' AND col.name='FECHA_EXTRACCION')
+    ALTER TABLE [RR].[NNN_NOMBRE] ADD CONSTRAINT DF_NNN_FEXT DEFAULT (GETDATE()) FOR [FECHA_EXTRACCION];
+```
+
+> Incluir estos bloques en la sección 01 del AJUSTE, antes del SP SILVER.
 
 ---
 

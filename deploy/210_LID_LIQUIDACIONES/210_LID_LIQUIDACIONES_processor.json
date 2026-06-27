@@ -1,0 +1,73 @@
+{
+  "processor_name": "LID_LIQUIDACIONES",
+  "enabled": true,
+  "file_pattern": "^LID_LIQUIDACIONES.*\\.xlsx?$",
+  "read_options": {
+    "encoding": "utf-8"
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "FECHA_LIQ":          "FECHA_LIQ",
+      "HORA_LIQ":           "HORA_LIQ",
+      "TIPO_VALOR":         "TIPO_VALOR",
+      "TIPO_OBLIGACION":    "TIPO_OBLIGACION",
+      "MONTO_PAGOS":        "MONTO_PAGOS",
+      "MONEDA":             "MONEDA",
+      "ID_PAGOS":           "ID_PAGOS",
+      "FLAG_HORARIO":       "FLAG_HORARIO",
+      "ID_PAGOS_RET":       "ID_PAGOS_RET",
+      "FECHA_EST_PAGO":     "FECHA_EST_PAGO",
+      "HORA_EST_PAGO":      "HORA_EST_PAGO",
+      "PENALIZACION":       "PENALIZACION",
+      "MOTIVO_RET":         "MOTIVO_RET",
+      "ID_OPERACION":       "ID_OPERACION",
+      "CARACT_LIQUIDACION": "CARACT_LIQUIDACION",
+      "FECHA_INFO":         "FECHA_INFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FECHA_LIQ",
+        "FECHA_EST_PAGO",
+        "FECHA_INFO"
+      ],
+      "numeric_fields": [
+        "TIPO_VALOR",
+        "TIPO_OBLIGACION",
+        "MONTO_PAGOS",
+        "ID_PAGOS",
+        "FLAG_HORARIO",
+        "ID_PAGOS_RET",
+        "PENALIZACION",
+        "MOTIVO_RET",
+        "CARACT_LIQUIDACION"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "FECHA_LIQ",
+      "HORA_LIQ",
+      "TIPO_VALOR",
+      "TIPO_OBLIGACION",
+      "MONTO_PAGOS",
+      "MONEDA",
+      "ID_PAGOS",
+      "FLAG_HORARIO",
+      "ID_PAGOS_RET",
+      "FECHA_EST_PAGO",
+      "HORA_EST_PAGO",
+      "PENALIZACION",
+      "MOTIVO_RET",
+      "ID_OPERACION",
+      "CARACT_LIQUIDACION",
+      "FECHA_INFO",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "LID_LIQUIDACIONES",
+    "load_strategy": "append"
+  }
+}

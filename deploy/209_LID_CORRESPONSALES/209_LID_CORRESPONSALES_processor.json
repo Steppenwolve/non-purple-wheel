@@ -1,0 +1,55 @@
+{
+  "processor_name": "LID_CORRESPONSALES",
+  "enabled": true,
+  "file_pattern": "^LID_CORRESPONSALES.*\\.xlsx?$",
+  "read_options": {
+    "encoding": "utf-8"
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "FECHA_LIQ":          "FECHA_LIQ",
+      "HORA_LIQ":           "HORA_LIQ",
+      "TIPO_VALOR":         "TIPO_VALOR",
+      "MONTO_PAGOS":        "MONTO_PAGOS",
+      "MONEDA":             "MONEDA",
+      "ID_PAGOS_REAL":      "ID_PAGOS_REAL",
+      "CONT_CORRESPONSAL":  "CONT_CORRESPONSAL",
+      "CONT_RECEPTORA":     "CONT_RECEPTORA",
+      "CARACT_LIQUIDACION": "CARACT_LIQUIDACION",
+      "FECHA_INFO":         "FECHA_INFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FECHA_LIQ",
+        "FECHA_INFO"
+      ],
+      "numeric_fields": [
+        "TIPO_VALOR",
+        "MONTO_PAGOS",
+        "ID_PAGOS_REAL",
+        "CARACT_LIQUIDACION"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "FECHA_LIQ",
+      "HORA_LIQ",
+      "TIPO_VALOR",
+      "MONTO_PAGOS",
+      "MONEDA",
+      "ID_PAGOS_REAL",
+      "CONT_CORRESPONSAL",
+      "CONT_RECEPTORA",
+      "CARACT_LIQUIDACION",
+      "FECHA_INFO",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "LID_CORRESPONSALES",
+    "load_strategy": "append"
+  }
+}

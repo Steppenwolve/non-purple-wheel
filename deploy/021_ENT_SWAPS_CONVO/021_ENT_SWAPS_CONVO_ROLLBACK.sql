@@ -1,0 +1,234 @@
+-- ============================================================
+-- ROLLBACK  021_ENT_SWAPS_CONVO
+-- ============================================================
+
+-- ============================================================
+-- SECTION R01 | Restaurar SP ION (version original)
+-- ============================================================
+USE [ION]
+GO
+
+CREATE OR ALTER PROCEDURE [dbo].[021_ENT_SWAPS_CONVO]
+    @FECHA DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+    SELECT
+        [ID],
+        [FECHA_EXTRACCION],
+        [NUM_ID],
+        [FE_CON_OPE],
+        [FE_VEN_FLU_R],
+        [FE_VEN_FLU_E],
+        [ACT_OPE],
+        [MON_ACT_OPE],
+        [ACT_OPE_ME],
+        [MON_ACT_OPE_ME],
+        [PAS_OPE],
+        [MON_PAS_OPE],
+        [PAS_OPE_MR],
+        [MON_PAS_OPE_MR],
+        [DUR_ACT],
+        [DUR_PAS],
+        [ID_GAR],
+        [OBJ_OPE],
+        [SEC_SWAP],
+        [FE_CORTE],
+        [ACT_OPE_VAL],
+        [ACT_OPE_ME_VAL],
+        [PAS_OPE_VAL],
+        [PAS_OPE_MR_VAL]
+    FROM [SILVER].[RR].[021_ENT_SWAPS_CONVO]
+    WHERE [FE_CON_OPE] >= @FECHA AND [FE_CON_OPE] < @FECHA;
+END;
+GO
+
+-- ============================================================
+-- SECTION R02 | Restaurar SP SILVER (version original — self-select)
+-- ============================================================
+USE [SILVER]
+GO
+
+CREATE OR ALTER PROCEDURE [dbo].[021_ENT_SWAPS_CONVO]
+    @CorreoNotificacion NVARCHAR(255) = NULL,
+    @PerfilCorreo       NVARCHAR(255) = NULL,
+    @ProgramadorJob     NVARCHAR(128) = NULL,
+    @FechaSistema       DATETIME
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+    DECLARE @MensajeError   NVARCHAR(MAX) = '';
+    DECLARE @ExitoEjecucion BIT           = 1;
+    DECLARE @FilasInsertadas INT          = 0;
+    DECLARE @DetallesLog    NVARCHAR(MAX) = '';
+    DECLARE @FechaInicio    DATETIME      = GETDATE();
+    DECLARE @NombreJob      NVARCHAR(128) = '[021_ENT_SWAPS_CONVO]';
+    DECLARE @FechaIni DATE, @FechaFin DATE;
+
+    BEGIN TRY
+        SET @FechaIni = DATEFROMPARTS(YEAR(@FechaSistema), MONTH(@FechaSistema), 1);
+        SET @FechaFin = DATEADD(MONTH, 1, @FechaIni);
+
+        IF EXISTS (SELECT ID FROM [SILVER].[RR].[021_ENT_SWAPS_CONVO]
+                   WHERE [FE_CON_OPE] >= @FechaIni AND [FE_CON_OPE] < @FechaFin)
+            DELETE FROM [SILVER].[RR].[021_ENT_SWAPS_CONVO]
+            WHERE [FE_CON_OPE] >= @FechaIni AND [FE_CON_OPE] < @FechaFin;
+
+        INSERT INTO [SILVER].[RR].[021_ENT_SWAPS_CONVO] (
+            [NUM_ID],[FE_CON_OPE],[FE_VEN_FLU_R],[FE_VEN_FLU_E],
+            [ACT_OPE],[MON_ACT_OPE],[ACT_OPE_ME],[MON_ACT_OPE_ME],
+            [PAS_OPE],[MON_PAS_OPE],[PAS_OPE_MR],[MON_PAS_OPE_MR],
+            [DUR_ACT],[DUR_PAS],[ID_GAR],[OBJ_OPE],[SEC_SWAP],[FE_CORTE],
+            [ACT_OPE_VAL],[ACT_OPE_ME_VAL],[PAS_OPE_VAL],[PAS_OPE_MR_VAL]
+        )
+        SELECT
+            [NUM_ID],[FE_CON_OPE],[FE_VEN_FLU_R],[FE_VEN_FLU_E],
+            [ACT_OPE],[MON_ACT_OPE],[ACT_OPE_ME],[MON_ACT_OPE_ME],
+            [PAS_OPE],[MON_PAS_OPE],[PAS_OPE_MR],[MON_PAS_OPE_MR],
+            [DUR_ACT],[DUR_PAS],[ID_GAR],[OBJ_OPE],[SEC_SWAP],[FE_CORTE],
+            [ACT_OPE_VAL],[ACT_OPE_ME_VAL],[PAS_OPE_VAL],[PAS_OPE_MR_VAL]
+        FROM [SILVER].[RR].[021_ENT_SWAPs_CONVO]
+        WHERE [FE_CON_OPE] >= @FechaIni AND [FE_CON_OPE] < @FechaFin;
+
+        SET @FilasInsertadas = @@ROWCOUNT;
+        SET @DetallesLog += 'Filas: ' + CAST(@FilasInsertadas AS NVARCHAR(10)) + CHAR(13) + CHAR(10);
+    END TRY
+    BEGIN CATCH
+        SET @ExitoEjecucion = 0;
+        SET @MensajeError   = ERROR_MESSAGE();
+        SET @DetallesLog   += 'Error: ' + @MensajeError + CHAR(13) + CHAR(10);
+    END CATCH
+
+    INSERT INTO dbo.LogSilverDiario (
+        FechaEjecucion, FilasInsertadas, EstadoEjecucion,
+        MensajeError, DetallesLog, NombreJob, ProgramadorJob
+    )
+    VALUES (
+        @FechaInicio, @FilasInsertadas,
+        CASE WHEN @ExitoEjecucion = 1 THEN 'Exitoso' ELSE 'Error' END,
+        CASE WHEN @ExitoEjecucion = 1 THEN NULL ELSE @MensajeError END,
+        @DetallesLog, @NombreJob, @ProgramadorJob
+    );
+END;
+GO
+
+-- ============================================================
+-- SECTION R03 | Revertir estructura SILVER
+--   R03a: DROP FECHAINFO
+--   R03b: NOCIONAL y MON_NOCIONAL -> NULL
+--   R03c: ADD columnas obsoletas
+-- ============================================================
+USE [SILVER]
+GO
+
+-- R03a: DROP FECHAINFO
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='021_ENT_SWAPS_CONVO' AND COLUMN_NAME='FECHAINFO')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] DROP COLUMN [FECHAINFO];
+GO
+USE [SILVER]
+GO
+-- R03b: revertir nullabilidad
+ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ALTER COLUMN [NOCIONAL]     numeric(15,0) NULL;
+ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ALTER COLUMN [MON_NOCIONAL] varchar(3)    NULL;
+GO
+USE [SILVER]
+GO
+-- R03c: restaurar columnas obsoletas
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='021_ENT_SWAPS_CONVO' AND COLUMN_NAME='OBJ_OPE')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ADD [OBJ_OPE] varchar(2) NOT NULL CONSTRAINT [DF_RR_021_OBJ_OPE_TMP] DEFAULT ('');
+GO
+USE [SILVER]
+GO
+IF EXISTS (SELECT 1 FROM sys.default_constraints WHERE name = 'DF_RR_021_OBJ_OPE_TMP')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] DROP CONSTRAINT [DF_RR_021_OBJ_OPE_TMP];
+GO
+USE [SILVER]
+GO
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='021_ENT_SWAPS_CONVO' AND COLUMN_NAME='SEC_SWAP')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ADD [SEC_SWAP] numeric(1,0) NOT NULL CONSTRAINT [DF_RR_021_SEC_SWAP_TMP] DEFAULT (0);
+GO
+USE [SILVER]
+GO
+IF EXISTS (SELECT 1 FROM sys.default_constraints WHERE name = 'DF_RR_021_SEC_SWAP_TMP')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] DROP CONSTRAINT [DF_RR_021_SEC_SWAP_TMP];
+GO
+USE [SILVER]
+GO
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='021_ENT_SWAPS_CONVO' AND COLUMN_NAME='FE_CORTE')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ADD [FE_CORTE] date NOT NULL CONSTRAINT [DF_RR_021_FE_CORTE_TMP] DEFAULT ('19000101');
+GO
+USE [SILVER]
+GO
+IF EXISTS (SELECT 1 FROM sys.default_constraints WHERE name = 'DF_RR_021_FE_CORTE_TMP')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] DROP CONSTRAINT [DF_RR_021_FE_CORTE_TMP];
+GO
+USE [SILVER]
+GO
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='021_ENT_SWAPS_CONVO' AND COLUMN_NAME='ACT_OPE_VAL')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ADD [ACT_OPE_VAL] numeric(15,0) NOT NULL CONSTRAINT [DF_RR_021_ACT_OPE_VAL_TMP] DEFAULT (0);
+GO
+USE [SILVER]
+GO
+IF EXISTS (SELECT 1 FROM sys.default_constraints WHERE name = 'DF_RR_021_ACT_OPE_VAL_TMP')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] DROP CONSTRAINT [DF_RR_021_ACT_OPE_VAL_TMP];
+GO
+USE [SILVER]
+GO
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='021_ENT_SWAPS_CONVO' AND COLUMN_NAME='ACT_OPE_ME_VAL')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ADD [ACT_OPE_ME_VAL] numeric(15,0) NOT NULL CONSTRAINT [DF_RR_021_ACT_OPE_ME_VAL_TMP] DEFAULT (0);
+GO
+USE [SILVER]
+GO
+IF EXISTS (SELECT 1 FROM sys.default_constraints WHERE name = 'DF_RR_021_ACT_OPE_ME_VAL_TMP')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] DROP CONSTRAINT [DF_RR_021_ACT_OPE_ME_VAL_TMP];
+GO
+USE [SILVER]
+GO
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='021_ENT_SWAPS_CONVO' AND COLUMN_NAME='PAS_OPE_VAL')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ADD [PAS_OPE_VAL] numeric(15,0) NOT NULL CONSTRAINT [DF_RR_021_PAS_OPE_VAL_TMP] DEFAULT (0);
+GO
+USE [SILVER]
+GO
+IF EXISTS (SELECT 1 FROM sys.default_constraints WHERE name = 'DF_RR_021_PAS_OPE_VAL_TMP')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] DROP CONSTRAINT [DF_RR_021_PAS_OPE_VAL_TMP];
+GO
+USE [SILVER]
+GO
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='021_ENT_SWAPS_CONVO' AND COLUMN_NAME='PAS_OPE_MR_VAL')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ADD [PAS_OPE_MR_VAL] numeric(15,0) NOT NULL CONSTRAINT [DF_RR_021_PAS_OPE_MR_VAL_TMP] DEFAULT (0);
+GO
+USE [SILVER]
+GO
+IF EXISTS (SELECT 1 FROM sys.default_constraints WHERE name = 'DF_RR_021_PAS_OPE_MR_VAL_TMP')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] DROP CONSTRAINT [DF_RR_021_PAS_OPE_MR_VAL_TMP];
+GO
+USE [SILVER]
+GO
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='021_ENT_SWAPS_CONVO' AND COLUMN_NAME='NOCIONAL_VAL')
+    ALTER TABLE [RR].[021_ENT_SWAPS_CONVO] ADD [NOCIONAL_VAL] numeric(15,0) NULL;
+GO
+
+-- ============================================================
+-- SECTION R04 | Eliminar tabla BRONZE.LMDA.SWAP_CONVO
+-- ============================================================
+USE [BRONZE]
+GO
+
+IF OBJECT_ID('LMDA.[SWAP_CONVO]', 'U') IS NOT NULL
+    DROP TABLE [LMDA].[SWAP_CONVO];
+GO
+
+-- ============================================================
+-- SECTION R05 | INDICE_REPORTES — restaurar frecuencia original
+-- ============================================================
+USE [ION]
+GO
+
+UPDATE [dbo].[INDICE_REPORTES]
+SET [frecuencia] = 'Diaria'
+WHERE [numero] = 21;
+GO

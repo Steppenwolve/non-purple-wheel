@@ -1,0 +1,65 @@
+{
+  "processor_name": "CANASTA_REPORTOS",
+  "enabled": true,
+  "file_pattern": "^CANASTA_REPORTOS.*\\.xlsx?$",
+  "file_type": "excel",
+  "read_options": {
+    "sheet_name": 0
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "FECHACONCERTACION":             "FECHACONCERTACION",
+      "TITULOOBJETOREPORTO":           "TITULOOBJETOREPORTO",
+      "PRECIOUNITARIOTITULOS":         "PRECIOUNITARIOTITULOS",
+      "NUMEROTITULOSOBJETOREPORTO":    "NUMEROTITULOSOBJETOREPORTO",
+      "IMPORTEREPORTO":                "IMPORTEREPORTO",
+      "HAIRCUT":                       "HAIRCUT",
+      "FECHA_FIN_COLATERAL":           "FECHA_FIN_COLATERAL",
+      "NUMEROIDENTIFICACIONOPERACION": "NUMEROIDENTIFICACIONOPERACION",
+      "NUM_ID_CANASTA":                "NUM_ID_CANASTA",
+      "SECCION":                       "SECCION",
+      "EMISION":                       "EMISION",
+      "SERIE":                         "SERIE",
+      "TIPOVALOR":                     "TIPOVALOR",
+      "FECHA_INFO":                    "FECHA_INFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FECHACONCERTACION",
+        "FECHA_FIN_COLATERAL",
+        "FECHA_INFO"
+      ],
+      "numeric_fields": [
+        "PRECIOUNITARIOTITULOS",
+        "NUMEROTITULOSOBJETOREPORTO",
+        "IMPORTEREPORTO",
+        "HAIRCUT"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "FECHACONCERTACION",
+      "TITULOOBJETOREPORTO",
+      "PRECIOUNITARIOTITULOS",
+      "NUMEROTITULOSOBJETOREPORTO",
+      "IMPORTEREPORTO",
+      "HAIRCUT",
+      "FECHA_FIN_COLATERAL",
+      "NUMEROIDENTIFICACIONOPERACION",
+      "NUM_ID_CANASTA",
+      "SECCION",
+      "EMISION",
+      "SERIE",
+      "TIPOVALOR",
+      "FECHA_INFO",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "CANASTA_REPORTOS",
+    "load_strategy": "append"
+  }
+}

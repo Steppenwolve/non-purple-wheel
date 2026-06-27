@@ -1,0 +1,102 @@
+{
+  "processor_name": "SWAP_FLUJO",
+  "enabled": true,
+  "file_pattern": "^FILE_SWAP_FLUJO.*\\.xlsx?$",
+  "read_options": {
+    "encoding": "utf-8"
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "CONT":       "CONT",
+      "FECHA":      "FECHA",
+      "NU_ID":      "NU_ID",
+      "IMP_BASE":   "IMP_BASE",
+      "NU_FL_RE":   "NU_FL_RE",
+      "FEIN_FL_RE": "FEIN_FL_RE",
+      "FEIN_VE_RE": "FEIN_VE_RE",
+      "TIP_TAS_RE": "TIP_TAS_RE",
+      "TAS_FIJ_RE": "TAS_FIJ_RE",
+      "TAS_REF_RE": "TAS_REF_RE",
+      "OP1_TAS_RE": "OP1_TAS_RE",
+      "PT1_TAS_RE": "PT1_TAS_RE",
+      "FE_REF_RE":  "FE_REF_RE",
+      "NU_FL_EN":   "NU_FL_EN",
+      "FE_IN_FLRE": "FE_IN_FLRE",
+      "FE_VE_FLEN": "FE_VE_FLEN",
+      "TIP_TAS_EN": "TIP_TAS_EN",
+      "TAS_FIJ_EN": "TAS_FIJ_EN",
+      "TAS_REF_EN": "TAS_REF_EN",
+      "OP1_TAS_EN": "OP1_TAS_EN",
+      "PT1_TAS_EN": "PT1_TAS_EN",
+      "FE_REF_EN":  "FE_REF_EN",
+      "IMP_BA_EN":  "IMP_BA_EN",
+      "IMP_BA_RE":  "IMP_BA_RE",
+      "FEIN_FL_EN": "FEIN_FL_EN",
+      "FEIN_VE_EN": "FEIN_VE_EN",
+      "MODIFICA":   "MODIFICA",
+      "FECHAINFO":  "FECHAINFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FECHA",
+        "FEIN_FL_RE",
+        "FEIN_VE_RE",
+        "FE_IN_FLRE",
+        "FE_VE_FLEN",
+        "FEIN_FL_EN",
+        "FEIN_VE_EN",
+        "FECHAINFO"
+      ],
+      "numeric_fields": [
+        "IMP_BASE",
+        "NU_FL_RE",
+        "TAS_FIJ_RE",
+        "PT1_TAS_RE",
+        "NU_FL_EN",
+        "TAS_FIJ_EN",
+        "PT1_TAS_EN",
+        "IMP_BA_EN",
+        "IMP_BA_RE"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "CONT",
+      "FECHA",
+      "NU_ID",
+      "IMP_BASE",
+      "NU_FL_RE",
+      "FEIN_FL_RE",
+      "FEIN_VE_RE",
+      "TIP_TAS_RE",
+      "TAS_FIJ_RE",
+      "TAS_REF_RE",
+      "OP1_TAS_RE",
+      "PT1_TAS_RE",
+      "FE_REF_RE",
+      "NU_FL_EN",
+      "FE_IN_FLRE",
+      "FE_VE_FLEN",
+      "TIP_TAS_EN",
+      "TAS_FIJ_EN",
+      "TAS_REF_EN",
+      "OP1_TAS_EN",
+      "PT1_TAS_EN",
+      "FE_REF_EN",
+      "IMP_BA_EN",
+      "IMP_BA_RE",
+      "FEIN_FL_EN",
+      "FEIN_VE_EN",
+      "MODIFICA",
+      "FECHAINFO",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "SWAP_FLUJO",
+    "load_strategy": "append"
+  }
+}

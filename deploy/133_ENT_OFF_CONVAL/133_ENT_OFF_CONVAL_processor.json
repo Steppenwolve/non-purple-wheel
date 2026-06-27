@@ -1,0 +1,73 @@
+{
+  "processor_name": "OFF_CONVAL",
+  "enabled": true,
+  "file_pattern": "^OFF_CONVAL.*\\.xlsx?$",
+  "file_type": "excel",
+  "read_options": {
+    "sheet_name": 0
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "FE_CON_OPE":   "FE_CON_OPE",
+      "NUM_ID":       "NUM_ID",
+      "POS_OPER":     "POS_OPER",
+      "OBJ_OPE":      "OBJ_OPE",
+      "PAQ_EST":      "PAQ_EST",
+      "ID_PAQ_EST":   "ID_PAQ_EST",
+      "CON_PAQ_EST":  "CON_PAQ_EST",
+      "ACT_OPE":      "ACT_OPE",
+      "MON_ACT_OPE":  "MON_ACT_OPE",
+      "PAS_OPE":      "PAS_OPE",
+      "MON_PAS_OPE":  "MON_PAS_OPE",
+      "DUR_ACT":      "DUR_ACT",
+      "DUR_PAS":      "DUR_PAS",
+      "ID_GAR_VG":    "ID_GAR_VG",
+      "NOCIONAL":     "NOCIONAL",
+      "MON_NOCIONAL": "MON_NOCIONAL",
+      "FECHAINFO":    "FECHAINFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FE_CON_OPE",
+        "FECHAINFO"
+      ],
+      "numeric_fields": [
+        "PAQ_EST",
+        "CON_PAQ_EST",
+        "ACT_OPE",
+        "PAS_OPE",
+        "DUR_ACT",
+        "DUR_PAS",
+        "NOCIONAL"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "FE_CON_OPE",
+      "NUM_ID",
+      "POS_OPER",
+      "OBJ_OPE",
+      "PAQ_EST",
+      "ID_PAQ_EST",
+      "CON_PAQ_EST",
+      "ACT_OPE",
+      "MON_ACT_OPE",
+      "PAS_OPE",
+      "MON_PAS_OPE",
+      "DUR_ACT",
+      "DUR_PAS",
+      "ID_GAR_VG",
+      "NOCIONAL",
+      "MON_NOCIONAL",
+      "FECHAINFO",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "OFF_CONVAL",
+    "load_strategy": "append"
+  }
+}

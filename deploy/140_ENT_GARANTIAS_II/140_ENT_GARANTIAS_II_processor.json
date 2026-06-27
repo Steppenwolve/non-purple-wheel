@@ -1,0 +1,62 @@
+{
+  "processor_name": "GARANTIAS_II",
+  "enabled": true,
+  "file_pattern": "^GARANTIAS_II.*\\.xlsx?$",
+  "file_type": "excel",
+  "read_options": {
+    "sheet_name": 0
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "OFICINA":    "OFICINA",
+      "CONT":       "CONT",
+      "ID_GAR":     "ID_GAR",
+      "CON_GTA":    "CON_GTA",
+      "POS_GTA":    "POS_GTA",
+      "TIP_GTA":    "TIP_GTA",
+      "CVE_TIT":    "CVE_TIT",
+      "EMI_ACT":    "EMI_ACT",
+      "FE_AV_BI":   "FE_AV_BI",
+      "RE_BM_BI":   "RE_BM_BI",
+      "AFORO":      "AFORO",
+      "VAL_GTA":    "VAL_GTA",
+      "MDA_GTA":    "MDA_GTA"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FE_AV_BI"
+      ],
+      "numeric_fields": [
+        "CON_GTA",
+        "TIP_GTA",
+        "AFORO",
+        "VAL_GTA",
+        "MDA_GTA"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "OFICINA",
+      "CONT",
+      "ID_GAR",
+      "CON_GTA",
+      "POS_GTA",
+      "TIP_GTA",
+      "CVE_TIT",
+      "EMI_ACT",
+      "FE_AV_BI",
+      "RE_BM_BI",
+      "AFORO",
+      "VAL_GTA",
+      "MDA_GTA",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "GARANTIAS_II",
+    "load_strategy": "append"
+  }
+}

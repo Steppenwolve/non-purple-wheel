@@ -2,308 +2,346 @@
    076_ENT_REPORTOS_MN_ME_ROLLBACK.sql
    Fin: Revertir el AJUSTE (origen LMDA + layout V7.1) y restaurar el 076
         a su definicion ORIGINAL (self-select, estructura previa).
-   IMPORTANTE: el DROP de la tabla nueva elimina los datos cargados.
+   Incluye: eliminacion de BRONZE.[LMDA].[REPORTOS_MN_ME] (creada por el AJUSTE).
+   IMPORTANTE: el DROP de tablas elimina los datos cargados.
    ============================================================================ */
+
+/* ----------------------------------------------------------------------------
+   00 - Eliminar BRONZE.[LMDA].[REPORTOS_MN_ME] (creada por el AJUSTE)
+   ---------------------------------------------------------------------------- */
+USE [BRONZE];
+GO
+IF EXISTS (
+    SELECT 1 FROM sys.objects o JOIN sys.schemas s ON s.schema_id=o.schema_id
+    WHERE s.name='LMDA' AND o.name='REPORTOS_MN_ME' AND o.type='U'
+)
+    DROP TABLE [LMDA].[REPORTOS_MN_ME];
+PRINT '>> BRONZE.[LMDA].[REPORTOS_MN_ME] eliminada (si existia).';
+GO
 
 USE [SILVER];
 GO
-IF EXISTS (SELECT 1 FROM sys.objects WHERE name='076_ENT_REPORTOS_MN_ME' AND schema_id=SCHEMA_ID('RR') AND type='U') DROP TABLE [RR].[076_ENT_REPORTOS_MN_ME];
+-- Revertir columnas nuevas V7.1 (agregar las originales, eliminar las nuevas)
+-- 1. Restaurar TIPOTASAPREMIO
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='TIPOTASAPREMIO')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] ADD [TIPOTASAPREMIO] [varchar](1) NOT NULL CONSTRAINT DF_076_RB_TIPOTAS DEFAULT ('');
+-- 2. Restaurar TIPOMODIFICACION
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='TIPOMODIFICACION')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] ADD [TIPOMODIFICACION] [varchar](1) NOT NULL CONSTRAINT DF_076_RB_TIPOMOD DEFAULT ('');
 GO
-CREATE TABLE [RR].[076_ENT_REPORTOS_MN_ME] (
-    [ID] uniqueidentifier NOT NULL DEFAULT (newid()),
-    [FECHACONCERTACION] date NOT NULL,
-    [HORACONCERTACION] numeric(5,2) NOT NULL,
-    [POSICIONOPERACION] varchar(1) NOT NULL,
-    [FECHAINICIO] date NOT NULL,
-    [FECHAVENCIMIENTO] date NOT NULL,
-    [IMPORTEREPORTO] numeric(12,0) NOT NULL,
-    [MONEDAPRECIOUNITARIO] varchar(3) NOT NULL,
-    [TASAPREMIO] numeric(8,4) NOT NULL,
-    [TIPOTASAPREMIO] varchar(1) NOT NULL,
-    [TITULOOBJETOREPORTO] varchar(18) NOT NULL,
-    [PRECIOUNITARIOTITULOS] numeric(19,8) NOT NULL,
-    [NUMEROTITULOSOBJETOREPORTO] numeric(12,0) NOT NULL,
-    [CONTRAPARTE_REPORTO] varchar(6) NOT NULL,
-    [CORROELECTRONICO] varchar(2) NOT NULL,
-    [TIPOPOSTURA] varchar(2) NOT NULL,
-    [OPERACIONBANCOTRABAJO] varchar(1) NOT NULL,
-    [NUMEROIDENTIFICACIONOPERACION] varchar(37) NOT NULL,
-    [TIPOMODIFICACION] varchar(1) NOT NULL,
-    [CLASIFICACIONCONTABLEOPERACION] varchar(2) NOT NULL,
-    [FECHAVENCIMIENTO_TITULO] date NOT NULL,
-    [OFICINA] varchar(1) NOT NULL,
-    [EMISION] varchar(50) NOT NULL,
-    [SERIE] varchar(50) NOT NULL,
-    [TIPOVALOR] varchar(50) NOT NULL,
-    [SOBRETASA] varchar(1) NOT NULL,
-    [EMISOR] varchar(6) NOT NULL,
-    [DIASXVENCER_CUPON] numeric(12,0) NOT NULL,
-    [APLICA_ANEXO1C] varchar(1) NOT NULL,
-    [CUSTODIO] numeric(6,0) NOT NULL,
-    [FECHAVALOR] numeric(1,0) NOT NULL,
-    [CLIENTE] numeric(6,0) NOT NULL,
-    [RESTRICCION] varchar(2) NOT NULL,
-    [FECHA_EXTRACCION] smalldatetime NOT NULL DEFAULT (getdate())
-);
+-- 3. Revertir CONTRAPARTEREPORTO -> CONTRAPARTE_REPORTO
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='CONTRAPARTEREPORTO')
+   AND NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='CONTRAPARTE_REPORTO')
+    EXEC sp_rename '[RR].[076_ENT_REPORTOS_MN_ME].[CONTRAPARTEREPORTO]', 'CONTRAPARTE_REPORTO', 'COLUMN';
+GO
+-- 4. Revertir tipo CORROELECTRONICO numeric(2,0) -> varchar(2)
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+           WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME'
+             AND COLUMN_NAME='CORROELECTRONICO' AND DATA_TYPE='numeric')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] ALTER COLUMN [CORROELECTRONICO] [varchar](2) NOT NULL;
+GO
+-- 5. Eliminar columnas nuevas V7.1 (en orden inverso a como se agregaron)
+DECLARE @sql NVARCHAR(MAX) = '';
+-- Primero eliminar DEFAULT constraints de columnas nuevas antes de DROP COLUMN
+SELECT @sql = @sql + 'ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP CONSTRAINT ' + dc.name + '; '
+FROM sys.default_constraints dc
+JOIN sys.columns col ON col.default_object_id = dc.object_id
+JOIN sys.objects o ON o.object_id = dc.parent_object_id
+WHERE o.name = '076_ENT_REPORTOS_MN_ME'
+  AND col.name IN ('RESIDENCIA_CONTRAPARTE','PROPIA_TERCEROS','CLIENTE_PROV','HAIRCUT',
+                   'REP_SUSTITUCION','MODALIDAD_REPORTO','PLAZO_EVERGREEN','REP_CONJUNTO_VAL',
+                   'REP_AG_TRIPARTITO','AGENTE_TRIPARTITO','TASA_REFERENCIA_PREMIO',
+                   'SOBRETASA_PREMIO','PERIODO_PAGO_PREMIO');
+IF LEN(@sql) > 0 EXEC sp_executesql @sql;
+GO
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='RESIDENCIA_CONTRAPARTE')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [RESIDENCIA_CONTRAPARTE];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='PROPIA_TERCEROS')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [PROPIA_TERCEROS];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='CLIENTE_PROV')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [CLIENTE_PROV];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='HAIRCUT')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [HAIRCUT];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='REP_SUSTITUCION')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [REP_SUSTITUCION];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='MODALIDAD_REPORTO')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [MODALIDAD_REPORTO];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='PLAZO_EVERGREEN')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [PLAZO_EVERGREEN];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='REP_CONJUNTO_VAL')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [REP_CONJUNTO_VAL];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='REP_AG_TRIPARTITO')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [REP_AG_TRIPARTITO];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='AGENTE_TRIPARTITO')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [AGENTE_TRIPARTITO];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='TASA_REFERENCIA_PREMIO')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [TASA_REFERENCIA_PREMIO];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='SOBRETASA_PREMIO')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [SOBRETASA_PREMIO];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='PERIODO_PAGO_PREMIO')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [PERIODO_PAGO_PREMIO];
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='076_ENT_REPORTOS_MN_ME' AND COLUMN_NAME='FECHA_INFO')
+    ALTER TABLE [RR].[076_ENT_REPORTOS_MN_ME] DROP COLUMN [FECHA_INFO];
+PRINT '>> SILVER.[RR].[076_ENT_REPORTOS_MN_ME] revertida a estructura original.';
 GO
 
 -- SP SILVER original
 GO
-CREATE OR ALTER PROCEDURE [dbo].[076_ENT_REPORTOS_MN_ME] @CorreoNotificacion NVARCHAR(255) = NULL,
-	@PerfilCorreo NVARCHAR(255) = NULL,
-	@ProgramadorJob NVARCHAR(128) = NULL,
-	@FechaSistema DATETIME
-AS
-BEGIN
-	SET NOCOUNT ON;
-	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-
-	DECLARE @SQL NVARCHAR(MAX);
-	DECLARE @MensajeError NVARCHAR(MAX) = '';
-	DECLARE @ExitoEjecucion BIT = 1;
-	DECLARE @FilasInsertadas INT = 0;
-	DECLARE @LogMessage NVARCHAR(MAX) = '';
-	DECLARE @DetallesLog NVARCHAR(MAX) = '';
-	DECLARE @FechaInicio DATETIME = GETDATE();
-	DECLARE @FilasEliminadas INT = 0;
-	DECLARE @NombreJob NVARCHAR(128) = '[076_ENT_REPORTOS_MN_ME]';
-	DECLARE @FechaIni DATE,
-		@FechaFin DATE;
-
-	BEGIN TRY
-		SET @FechaIni = datefromparts(year(@FechaSistema), month(@FechaSistema), 1)
-		SET @FechaFin = Dateadd(month, 1, @FechaIni) --------------------------------------------------------------------------------
-			-- QUERY
-
-		IF EXISTS (
-				SELECT ID
-				FROM [SILVER].[RR].[076_ENT_REPORTOS_MN_ME]
-				WHERE [FECHAVENCIMIENTO] = @FechaSistema
-				)
-		BEGIN
-			DELETE
-			FROM [SILVER].[RR].[076_ENT_REPORTOS_MN_ME]
-			WHERE [FECHAVENCIMIENTO] = @FechaSistema;
-
-			SET @FilasEliminadas = @@ROWCOUNT;
-			SET @LogMessage = 'Registros eliminados: ' + CAST(@FilasEliminadas AS NVARCHAR(10));
-
-			PRINT @LogMessage;
-
-			SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
-		END;
-
-		INSERT INTO [RR].[076_ENT_REPORTOS_MN_ME] (
-			[FECHACONCERTACION],
-			[HORACONCERTACION],
-			[POSICIONOPERACION],
-			[FECHAINICIO],
-			[FECHAVENCIMIENTO],
-			[IMPORTEREPORTO],
-			[MONEDAPRECIOUNITARIO],
-			[TASAPREMIO],
-			[TIPOTASAPREMIO],
-			[TITULOOBJETOREPORTO],
-			[PRECIOUNITARIOTITULOS],
-			[NUMEROTITULOSOBJETOREPORTO],
-			[CONTRAPARTE_REPORTO],
-			[CORROELECTRONICO],
-			[TIPOPOSTURA],
-			[OPERACIONBANCOTRABAJO],
-			[NUMEROIDENTIFICACIONOPERACION],
-			[TIPOMODIFICACION],
-			[CLASIFICACIONCONTABLEOPERACION],
-			[FECHAVENCIMIENTO_TITULO],
-			[OFICINA],
-			[EMISION],
-			[SERIE],
-			[TIPOVALOR],
-			[SOBRETASA],
-			[EMISOR],
-			[DIASXVENCER_CUPON],
-			[APLICA_ANEXO1C],
-			[CUSTODIO],
-			[FECHAVALOR],
-			[CLIENTE],
-			[RESTRICCION]
-			)
-		SELECT [FECHACONCERTACION],
-			[HORACONCERTACION],
-			[POSICIONOPERACION],
-			[FECHAINICIO],
-			[FECHAVENCIMIENTO],
-			[IMPORTEREPORTO],
-			[MONEDAPRECIOUNITARIO],
-			[TASAPREMIO],
-			[TIPOTASAPREMIO],
-			[TITULOOBJETOREPORTO],
-			[PRECIOUNITARIOTITULOS],
-			[NUMEROTITULOSOBJETOREPORTO],
-			[CONTRAPARTE_REPORTO],
-			[CORROELECTRONICO],
-			[TIPOPOSTURA],
-			[OPERACIONBANCOTRABAJO],
-			[NUMEROIDENTIFICACIONOPERACION],
-			[TIPOMODIFICACION],
-			[CLASIFICACIONCONTABLEOPERACION],
-			[FECHAVENCIMIENTO_TITULO],
-			[OFICINA],
-			[EMISION],
-			[SERIE],
-			[TIPOVALOR],
-			[SOBRETASA],
-			[EMISOR],
-			[DIASXVENCER_CUPON],
-			[APLICA_ANEXO1C],
-			[CUSTODIO],
-			[FECHAVALOR],
-			[CLIENTE],
-			[RESTRICCION]
-		FROM [SILVER].[RR].[076_ENT_REPORTOS_MN_ME]
-		WHERE [FECHAVENCIMIENTO] = @FechaSistema
-
-		---------------------------------------------------------------------------------------------
-		SET @FilasInsertadas = @@ROWCOUNT;
-		SET @LogMessage = 'Proceso completado. Filas totales: ' + CAST(@FilasInsertadas AS NVARCHAR(10));
-
-		PRINT @LogMessage;
-
-		SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
-	END TRY
-
-	BEGIN CATCH
-		SET @ExitoEjecucion = 0;
-		SET @MensajeError = ERROR_MESSAGE();
-		SET @LogMessage = 'Error durante la ejecución: ' + @MensajeError;
-
-		PRINT @LogMessage;
-
-		SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
-	END CATCH -- Preparar el mensaje detallado para la alerta
-
-	DECLARE @Asunto NVARCHAR(255);
-	DECLARE @Cuerpo NVARCHAR(MAX);
-	DECLARE @FechaFinalizacion DATETIME = GETDATE();
-	DECLARE @DuracionEjecucion VARCHAR(20) = CAST(DATEDIFF(SECOND, @FechaInicio, @FechaFinalizacion) AS VARCHAR(10)) + ' segundos';
-
-	-- Solo enviar alerta si hay un error
-	IF @ExitoEjecucion = 0
-		AND @CorreoNotificacion IS NOT NULL
-		AND @PerfilCorreo IS NOT NULL
-	BEGIN
-		SET @Asunto = 'ALERTA: Error en ' + ISNULL(@NombreJob, 'Job Desconocido');
-		SET @Cuerpo = 'Se ha producido un error durante la ejecución de.' + @NombreJob + CHAR(13) + CHAR(10) + CHAR(13) + CHAR(10) + 'Detalles del Job:' + CHAR(13) + CHAR(10) + '- Nombre del Job: ' + ISNULL(@NombreJob, 'No especificado') + CHAR(13) + CHAR(10) + '- Programado por: ' + ISNULL(@ProgramadorJob, 'No especificado') + CHAR(13) + CHAR(10) + '- Fecha y hora de inicio: ' + CONVERT(VARCHAR, @FechaInicio, 120) + CHAR(13) + CHAR(10) + '- Fecha y hora de finalización: ' + CONVERT(VARCHAR, @FechaFinalizacion, 120) + CHAR(13) + CHAR(10) + '- Duración de la ejecución: ' + @DuracionEjecucion + CHAR(13) + CHAR(10) + CHAR(13) + CHAR(10) + 'Detalles de la Ejecución:' + CHAR(13) + CHAR(10) + 'Mensaje de Error:' + CHAR(13) + CHAR(10) + @MensajeError + CHAR(13) + CHAR(10) + CHAR(13) + CHAR(10) + 'Log de Ejecución:' + CHAR(13) + CHAR(10) + @DetallesLog;
-
-		BEGIN TRY
-			EXEC msdb.dbo.sp_send_dbmail @profile_name = @PerfilCorreo,
-				@recipients = @CorreoNotificacion,
-				@subject = @Asunto,
-				@body = @Cuerpo,
-				@body_format = 'TEXT',
-				@importance = 'High';
-
-			SET @LogMessage = 'Alerta de error enviada exitosamente.';
-
-			PRINT @LogMessage;
-
-			SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
-		END TRY
-
-		BEGIN CATCH
-			SET @LogMessage = 'Error al enviar alerta: ' + ERROR_MESSAGE();
-
-			PRINT @LogMessage;
-
-			SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
-		END CATCH
-	END -- Registrar en la tabla de log
-
-	INSERT INTO dbo.LogSilverDiario (
-		FechaEjecucion,
-		FilasInsertadas,
-		EstadoEjecucion,
-		MensajeError,
-		DetallesLog,
-		NombreJob,
-		ProgramadorJob
-		)
-	VALUES (
-		@FechaInicio,
-		@FilasInsertadas,
-		CASE 
-			WHEN @ExitoEjecucion = 1
-				THEN 'Exitoso'
-			ELSE 'Error'
-			END,
-		CASE 
-			WHEN @ExitoEjecucion = 1
-				THEN NULL
-			ELSE @MensajeError
-			END,
-		@DetallesLog,
-		@NombreJob,
-		@ProgramadorJob
-		);
-
-	SET @LogMessage = 'Proceso completado y registrado en la tabla de log.';
-
-	PRINT @LogMessage;
+CREATE OR ALTER PROCEDURE [dbo].[076_ENT_REPORTOS_MN_ME] @CorreoNotificacion NVARCHAR(255) = NULL,
+	@PerfilCorreo NVARCHAR(255) = NULL,
+	@ProgramadorJob NVARCHAR(128) = NULL,
+	@FechaSistema DATETIME
+AS
+BEGIN
+	SET NOCOUNT ON;
+	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+	DECLARE @SQL NVARCHAR(MAX);
+	DECLARE @MensajeError NVARCHAR(MAX) = '';
+	DECLARE @ExitoEjecucion BIT = 1;
+	DECLARE @FilasInsertadas INT = 0;
+	DECLARE @LogMessage NVARCHAR(MAX) = '';
+	DECLARE @DetallesLog NVARCHAR(MAX) = '';
+	DECLARE @FechaInicio DATETIME = GETDATE();
+	DECLARE @FilasEliminadas INT = 0;
+	DECLARE @NombreJob NVARCHAR(128) = '[076_ENT_REPORTOS_MN_ME]';
+	DECLARE @FechaIni DATE,
+		@FechaFin DATE;
+
+	BEGIN TRY
+		SET @FechaIni = datefromparts(year(@FechaSistema), month(@FechaSistema), 1)
+		SET @FechaFin = Dateadd(month, 1, @FechaIni) --------------------------------------------------------------------------------
+			-- QUERY
+
+		IF EXISTS (
+				SELECT ID
+				FROM [SILVER].[RR].[076_ENT_REPORTOS_MN_ME]
+				WHERE [FECHAVENCIMIENTO] = @FechaSistema
+				)
+		BEGIN
+			DELETE
+			FROM [SILVER].[RR].[076_ENT_REPORTOS_MN_ME]
+			WHERE [FECHAVENCIMIENTO] = @FechaSistema;
+
+			SET @FilasEliminadas = @@ROWCOUNT;
+			SET @LogMessage = 'Registros eliminados: ' + CAST(@FilasEliminadas AS NVARCHAR(10));
+
+			PRINT @LogMessage;
+
+			SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+		END;
+
+		INSERT INTO [RR].[076_ENT_REPORTOS_MN_ME] (
+			[FECHACONCERTACION],
+			[HORACONCERTACION],
+			[POSICIONOPERACION],
+			[FECHAINICIO],
+			[FECHAVENCIMIENTO],
+			[IMPORTEREPORTO],
+			[MONEDAPRECIOUNITARIO],
+			[TASAPREMIO],
+			[TIPOTASAPREMIO],
+			[TITULOOBJETOREPORTO],
+			[PRECIOUNITARIOTITULOS],
+			[NUMEROTITULOSOBJETOREPORTO],
+			[CONTRAPARTE_REPORTO],
+			[CORROELECTRONICO],
+			[TIPOPOSTURA],
+			[OPERACIONBANCOTRABAJO],
+			[NUMEROIDENTIFICACIONOPERACION],
+			[TIPOMODIFICACION],
+			[CLASIFICACIONCONTABLEOPERACION],
+			[FECHAVENCIMIENTO_TITULO],
+			[OFICINA],
+			[EMISION],
+			[SERIE],
+			[TIPOVALOR],
+			[SOBRETASA],
+			[EMISOR],
+			[DIASXVENCER_CUPON],
+			[APLICA_ANEXO1C],
+			[CUSTODIO],
+			[FECHAVALOR],
+			[CLIENTE],
+			[RESTRICCION]
+			)
+		SELECT [FECHACONCERTACION],
+			[HORACONCERTACION],
+			[POSICIONOPERACION],
+			[FECHAINICIO],
+			[FECHAVENCIMIENTO],
+			[IMPORTEREPORTO],
+			[MONEDAPRECIOUNITARIO],
+			[TASAPREMIO],
+			[TIPOTASAPREMIO],
+			[TITULOOBJETOREPORTO],
+			[PRECIOUNITARIOTITULOS],
+			[NUMEROTITULOSOBJETOREPORTO],
+			[CONTRAPARTE_REPORTO],
+			[CORROELECTRONICO],
+			[TIPOPOSTURA],
+			[OPERACIONBANCOTRABAJO],
+			[NUMEROIDENTIFICACIONOPERACION],
+			[TIPOMODIFICACION],
+			[CLASIFICACIONCONTABLEOPERACION],
+			[FECHAVENCIMIENTO_TITULO],
+			[OFICINA],
+			[EMISION],
+			[SERIE],
+			[TIPOVALOR],
+			[SOBRETASA],
+			[EMISOR],
+			[DIASXVENCER_CUPON],
+			[APLICA_ANEXO1C],
+			[CUSTODIO],
+			[FECHAVALOR],
+			[CLIENTE],
+			[RESTRICCION]
+		FROM [SILVER].[RR].[076_ENT_REPORTOS_MN_ME]
+		WHERE [FECHAVENCIMIENTO] = @FechaSistema
+
+		---------------------------------------------------------------------------------------------
+		SET @FilasInsertadas = @@ROWCOUNT;
+		SET @LogMessage = 'Proceso completado. Filas totales: ' + CAST(@FilasInsertadas AS NVARCHAR(10));
+
+		PRINT @LogMessage;
+
+		SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+	END TRY
+
+	BEGIN CATCH
+		SET @ExitoEjecucion = 0;
+		SET @MensajeError = ERROR_MESSAGE();
+		SET @LogMessage = 'Error durante la ejecución: ' + @MensajeError;
+
+		PRINT @LogMessage;
+
+		SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+	END CATCH -- Preparar el mensaje detallado para la alerta
+
+	DECLARE @Asunto NVARCHAR(255);
+	DECLARE @Cuerpo NVARCHAR(MAX);
+	DECLARE @FechaFinalizacion DATETIME = GETDATE();
+	DECLARE @DuracionEjecucion VARCHAR(20) = CAST(DATEDIFF(SECOND, @FechaInicio, @FechaFinalizacion) AS VARCHAR(10)) + ' segundos';
+
+	-- Solo enviar alerta si hay un error
+	IF @ExitoEjecucion = 0
+		AND @CorreoNotificacion IS NOT NULL
+		AND @PerfilCorreo IS NOT NULL
+	BEGIN
+		SET @Asunto = 'ALERTA: Error en ' + ISNULL(@NombreJob, 'Job Desconocido');
+		SET @Cuerpo = 'Se ha producido un error durante la ejecución de.' + @NombreJob + CHAR(13) + CHAR(10) + CHAR(13) + CHAR(10) + 'Detalles del Job:' + CHAR(13) + CHAR(10) + '- Nombre del Job: ' + ISNULL(@NombreJob, 'No especificado') + CHAR(13) + CHAR(10) + '- Programado por: ' + ISNULL(@ProgramadorJob, 'No especificado') + CHAR(13) + CHAR(10) + '- Fecha y hora de inicio: ' + CONVERT(VARCHAR, @FechaInicio, 120) + CHAR(13) + CHAR(10) + '- Fecha y hora de finalización: ' + CONVERT(VARCHAR, @FechaFinalizacion, 120) + CHAR(13) + CHAR(10) + '- Duración de la ejecución: ' + @DuracionEjecucion + CHAR(13) + CHAR(10) + CHAR(13) + CHAR(10) + 'Detalles de la Ejecución:' + CHAR(13) + CHAR(10) + 'Mensaje de Error:' + CHAR(13) + CHAR(10) + @MensajeError + CHAR(13) + CHAR(10) + CHAR(13) + CHAR(10) + 'Log de Ejecución:' + CHAR(13) + CHAR(10) + @DetallesLog;
+
+		BEGIN TRY
+			EXEC msdb.dbo.sp_send_dbmail @profile_name = @PerfilCorreo,
+				@recipients = @CorreoNotificacion,
+				@subject = @Asunto,
+				@body = @Cuerpo,
+				@body_format = 'TEXT',
+				@importance = 'High';
+
+			SET @LogMessage = 'Alerta de error enviada exitosamente.';
+
+			PRINT @LogMessage;
+
+			SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+		END TRY
+
+		BEGIN CATCH
+			SET @LogMessage = 'Error al enviar alerta: ' + ERROR_MESSAGE();
+
+			PRINT @LogMessage;
+
+			SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+		END CATCH
+	END -- Registrar en la tabla de log
+
+	INSERT INTO dbo.LogSilverDiario (
+		FechaEjecucion,
+		FilasInsertadas,
+		EstadoEjecucion,
+		MensajeError,
+		DetallesLog,
+		NombreJob,
+		ProgramadorJob
+		)
+	VALUES (
+		@FechaInicio,
+		@FilasInsertadas,
+		CASE 
+			WHEN @ExitoEjecucion = 1
+				THEN 'Exitoso'
+			ELSE 'Error'
+			END,
+		CASE 
+			WHEN @ExitoEjecucion = 1
+				THEN NULL
+			ELSE @MensajeError
+			END,
+		@DetallesLog,
+		@NombreJob,
+		@ProgramadorJob
+		);
+
+	SET @LogMessage = 'Proceso completado y registrado en la tabla de log.';
+
+	PRINT @LogMessage;
 END;
 GO
 
 USE [ION];
 GO
 -- SP ION original
-CREATE OR ALTER PROCEDURE [dbo].[076_ENT_REPORTOS_MN_ME]
-    @FECHA DATE
-AS
-BEGIN
- 	SET NOCOUNT ON
-	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
-   
- 
-	SELECT 
-		[ID],
-		[FECHA_EXTRACCION],
-		[FECHACONCERTACION],
-		[HORACONCERTACION],
-		[POSICIONOPERACION],
-		[FECHAINICIO],
-		[FECHAVENCIMIENTO],
-		[IMPORTEREPORTO],
-		[MONEDAPRECIOUNITARIO],
-		[TASAPREMIO],
-		[TIPOTASAPREMIO],
-		[TITULOOBJETOREPORTO],
-		[PRECIOUNITARIOTITULOS],
-		[NUMEROTITULOSOBJETOREPORTO],
-		[CONTRAPARTE_REPORTO],
-		[CORROELECTRONICO],
-		[TIPOPOSTURA],
-		[OPERACIONBANCOTRABAJO],
-		[NUMEROIDENTIFICACIONOPERACION],
-		[TIPOMODIFICACION],
-		[CLASIFICACIONCONTABLEOPERACION],
-		[FECHAVENCIMIENTO_TITULO],
-		[OFICINA],
-		[EMISION],
-		[SERIE],
-		[TIPOVALOR],
-		[SOBRETASA],
-		[EMISOR],
-		[DIASXVENCER_CUPON],
-		[APLICA_ANEXO1C],
-		[CUSTODIO],
-		[FECHAVALOR],
-		[CLIENTE],
-		[RESTRICCION]
-    FROM [SILVER].[RR].[076_ENT_REPORTOS_MN_ME]
-    WHERE [FECHAVENCIMIENTO] = @FECHA 
-
-END;
-
---EXEC [dbo].[091_ENT_ML] @FECHA = '20240420'
-
+CREATE OR ALTER PROCEDURE [dbo].[076_ENT_REPORTOS_MN_ME]
+    @FECHA DATE
+AS
+BEGIN
+ 	SET NOCOUNT ON
+	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+   
+ 
+	SELECT 
+		[ID],
+		[FECHA_EXTRACCION],
+		[FECHACONCERTACION],
+		[HORACONCERTACION],
+		[POSICIONOPERACION],
+		[FECHAINICIO],
+		[FECHAVENCIMIENTO],
+		[IMPORTEREPORTO],
+		[MONEDAPRECIOUNITARIO],
+		[TASAPREMIO],
+		[TIPOTASAPREMIO],
+		[TITULOOBJETOREPORTO],
+		[PRECIOUNITARIOTITULOS],
+		[NUMEROTITULOSOBJETOREPORTO],
+		[CONTRAPARTE_REPORTO],
+		[CORROELECTRONICO],
+		[TIPOPOSTURA],
+		[OPERACIONBANCOTRABAJO],
+		[NUMEROIDENTIFICACIONOPERACION],
+		[TIPOMODIFICACION],
+		[CLASIFICACIONCONTABLEOPERACION],
+		[FECHAVENCIMIENTO_TITULO],
+		[OFICINA],
+		[EMISION],
+		[SERIE],
+		[TIPOVALOR],
+		[SOBRETASA],
+		[EMISOR],
+		[DIASXVENCER_CUPON],
+		[APLICA_ANEXO1C],
+		[CUSTODIO],
+		[FECHAVALOR],
+		[CLIENTE],
+		[RESTRICCION]
+    FROM [SILVER].[RR].[076_ENT_REPORTOS_MN_ME]
+    WHERE [FECHAVENCIMIENTO] = @FECHA 
+
+END;
+
+--EXEC [dbo].[091_ENT_ML] @FECHA = '20240420'
+
     -- Para reportes diarios WHERE FECHA_REPORTE = @Fecha
 GO
 PRINT '>> Rollback 076 completado (restaurado a estructura original).';

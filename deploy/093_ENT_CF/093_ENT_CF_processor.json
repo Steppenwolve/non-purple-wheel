@@ -1,0 +1,54 @@
+{
+  "processor_name": "CF_I",
+  "enabled": true,
+  "file_pattern": "^CF_I.*\\.xlsx?$",
+  "file_type": "excel",
+  "read_options": {
+    "sheet_name": 0
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "TIPOOPERACION":  "TIPOOPERACION",
+      "TIPOFONDEO":     "TIPOFONDEO",
+      "FECHA_INICIO":   "FECHA_INICIO",
+      "FECHA_VENC":     "FECHA_VENC",
+      "MONTO_OPER":     "MONTO_OPER",
+      "MONEDA":         "MONEDA",
+      "CVE_ACREEDOR":   "CVE_ACREEDOR",
+      "TIP_REL_ACREED": "TIP_REL_ACREED",
+      "CVE_OPERACION":  "CVE_OPERACION"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FECHA_INICIO",
+        "FECHA_VENC"
+      ],
+      "numeric_fields": [
+        "TIPOOPERACION",
+        "TIPOFONDEO",
+        "MONTO_OPER",
+        "TIP_REL_ACREED"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "TIPOOPERACION",
+      "TIPOFONDEO",
+      "FECHA_INICIO",
+      "FECHA_VENC",
+      "MONTO_OPER",
+      "MONEDA",
+      "CVE_ACREEDOR",
+      "TIP_REL_ACREED",
+      "CVE_OPERACION",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "CF_I",
+    "load_strategy": "append"
+  }
+}

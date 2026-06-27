@@ -1,0 +1,76 @@
+{
+  "processor_name": "SWAP_CONVO",
+  "enabled": true,
+  "file_pattern": "^FILE_SWAP_CONVO.*\\.xlsx?$",
+  "read_options": {
+    "encoding": "utf-8"
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "NUM_ID":         "NUM_ID",
+      "FE_CON_OPE":     "FE_CON_OPE",
+      "FE_VEN_FLU_R":   "FE_VEN_FLU_R",
+      "FE_VEN_FLU_E":   "FE_VEN_FLU_E",
+      "ACT_OPE":        "ACT_OPE",
+      "MON_ACT_OPE":    "MON_ACT_OPE",
+      "ACT_OPE_ME":     "ACT_OPE_ME",
+      "MON_ACT_OPE_ME": "MON_ACT_OPE_ME",
+      "PAS_OPE":        "PAS_OPE",
+      "MON_PAS_OPE":    "MON_PAS_OPE",
+      "PAS_OPE_MR":     "PAS_OPE_MR",
+      "MON_PAS_OPE_MR": "MON_PAS_OPE_MR",
+      "DUR_ACT":        "DUR_ACT",
+      "DUR_PAS":        "DUR_PAS",
+      "ID_GAR":         "ID_GAR",
+      "NOCIONAL":       "NOCIONAL",
+      "MON_NOCIONAL":   "MON_NOCIONAL",
+      "FECHAINFO":      "FECHAINFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FE_CON_OPE",
+        "FE_VEN_FLU_R",
+        "FE_VEN_FLU_E",
+        "FECHAINFO"
+      ],
+      "numeric_fields": [
+        "ACT_OPE",
+        "ACT_OPE_ME",
+        "PAS_OPE",
+        "PAS_OPE_MR",
+        "DUR_ACT",
+        "DUR_PAS",
+        "NOCIONAL"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "NUM_ID",
+      "FE_CON_OPE",
+      "FE_VEN_FLU_R",
+      "FE_VEN_FLU_E",
+      "ACT_OPE",
+      "MON_ACT_OPE",
+      "ACT_OPE_ME",
+      "MON_ACT_OPE_ME",
+      "PAS_OPE",
+      "MON_PAS_OPE",
+      "PAS_OPE_MR",
+      "MON_PAS_OPE_MR",
+      "DUR_ACT",
+      "DUR_PAS",
+      "ID_GAR",
+      "NOCIONAL",
+      "MON_NOCIONAL",
+      "FECHAINFO",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "SWAP_CONVO",
+    "load_strategy": "append"
+  }
+}

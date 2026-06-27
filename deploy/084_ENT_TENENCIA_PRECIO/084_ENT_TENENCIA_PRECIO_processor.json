@@ -1,0 +1,58 @@
+{
+  "processor_name": "TENENCIA_PRECIO",
+  "enabled": true,
+  "file_pattern": "^TENENCIA_PRECIO.*\\.xlsx?$",
+  "file_type": "excel",
+  "read_options": {
+    "sheet_name": 0
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "TITULOOBJETO":           "TITULOOBJETO",
+      "PRECIO_VAL_MERCADO":     "PRECIO_VAL_MERCADO",
+      "CLASIFICACION_CONTABLE": "CLASIFICACION_CONTABLE",
+      "Restriccion":            "Restriccion",
+      "Custodio":               "Custodio",
+      "FechaValor":             "FechaValor",
+      "Cliente":                "Cliente",
+      "NoTitulosCliente":       "NoTitulosCliente",
+      "NoTitulosCedidos":       "NoTitulosCedidos",
+      "NoTitulosGarantia":      "NoTitulosGarantia",
+      "FECHA_INFO":             "FECHA_INFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FECHA_INFO"
+      ],
+      "numeric_fields": [
+        "PRECIO_VAL_MERCADO",
+        "FechaValor",
+        "NoTitulosCliente",
+        "NoTitulosCedidos",
+        "NoTitulosGarantia"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "TITULOOBJETO",
+      "PRECIO_VAL_MERCADO",
+      "CLASIFICACION_CONTABLE",
+      "Restriccion",
+      "Custodio",
+      "FechaValor",
+      "Cliente",
+      "NoTitulosCliente",
+      "NoTitulosCedidos",
+      "NoTitulosGarantia",
+      "FECHA_INFO",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "TENENCIA_PRECIO",
+    "load_strategy": "append"
+  }
+}

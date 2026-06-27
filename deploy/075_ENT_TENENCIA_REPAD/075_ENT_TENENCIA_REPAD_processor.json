@@ -1,0 +1,55 @@
+{
+  "processor_name": "FT_TENENCIA",
+  "enabled": true,
+  "file_pattern": "^FT_TENENCIA.*\\.csv$",
+  "file_type": "csv",
+  "read_options": {
+    "delimiter": "|",
+    "encoding": "utf-8"
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "TITULOOBJETO":          "TITULOOBJETO",
+      "NUMEROTITULOS":         "NUMEROTITULOS",
+      "CONTRAPARTE":           "CONTRAPARTE",
+      "MONEDA":                "MONEDA",
+      "PRECIOUNITARIO":        "PRECIOUNITARIO",
+      "PRECIO_VAL_MERCADO":    "PRECIO_VAL_MERCADO",
+      "CLASIFICACIONCONTABLE": "CLASIFICACIONCONTABLE",
+      "POSICIONOPERACION":     "POSICIONOPERACION",
+      "CVETIPOINSTRUMENTO":    "CVETIPOINSTRUMENTO",
+      "OFICINA":               "OFICINA",
+      "DEPOSITADOENGARANTIA":  "DEPOSITADOENGARANTIA"
+    },
+    "type_conversions": {
+      "date_fields": [],
+      "numeric_fields": [
+        "NUMEROTITULOS",
+        "PRECIOUNITARIO",
+        "PRECIO_VAL_MERCADO"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "TITULOOBJETO",
+      "NUMEROTITULOS",
+      "CONTRAPARTE",
+      "MONEDA",
+      "PRECIOUNITARIO",
+      "PRECIO_VAL_MERCADO",
+      "CLASIFICACIONCONTABLE",
+      "POSICIONOPERACION",
+      "CVETIPOINSTRUMENTO",
+      "OFICINA",
+      "DEPOSITADOENGARANTIA",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "FT_TENENCIA",
+    "load_strategy": "append"
+  }
+}

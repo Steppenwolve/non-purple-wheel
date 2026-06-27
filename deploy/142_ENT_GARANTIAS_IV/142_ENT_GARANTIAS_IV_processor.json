@@ -1,0 +1,49 @@
+{
+  "processor_name": "GARANTIAS_IV",
+  "enabled": true,
+  "file_pattern": "^GARANTIAS_IV.*\\.xlsx?$",
+  "file_type": "excel",
+  "read_options": {
+    "sheet_name": 0
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "OFICINA":     "OFICINA",
+      "CONT":        "CONT",
+      "NETEO_POS":   "NETEO_POS",
+      "TIP_CONTRAT": "TIP_CONTRAT",
+      "EXP_POT":     "EXP_POT",
+      "RSG_MAX":     "RSG_MAX",
+      "FECHAINFO":   "FECHAINFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FECHAINFO"
+      ],
+      "numeric_fields": [
+        "NETEO_POS",
+        "TIP_CONTRAT",
+        "EXP_POT",
+        "RSG_MAX"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "OFICINA",
+      "CONT",
+      "NETEO_POS",
+      "TIP_CONTRAT",
+      "EXP_POT",
+      "RSG_MAX",
+      "FECHA_EXTRACCION",
+      "FECHAINFO"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "GARANTIAS_IV",
+    "load_strategy": "append"
+  }
+}
