@@ -1,0 +1,46 @@
+{
+  "processor_name": "R04A_MOV_420_24",
+  "enabled": true,
+  "file_pattern": "^R04A_MOV_420_24.*\\.xlsx?$",
+  "file_type": "excel",
+  "read_options": {
+    "sheet_name": 0
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "CUENTA_CREDITO":   "CUENTA_CREDITO",
+      "ETAPA_DETERIORO":  "ETAPA_DETERIORO",
+      "TIPO_MOV_420_424": "TIPO_MOV_420_424",
+      "IMPORTE":          "IMPORTE",
+      "MONEDA":           "MONEDA",
+      "FECHA_INFO":       "FECHA_INFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FECHA_INFO"
+      ],
+      "numeric_fields": [
+        "ETAPA_DETERIORO",
+        "TIPO_MOV_420_424",
+        "IMPORTE"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "CUENTA_CREDITO",
+      "ETAPA_DETERIORO",
+      "TIPO_MOV_420_424",
+      "IMPORTE",
+      "MONEDA",
+      "FECHA_INFO",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "R04A_MOV_420_24",
+    "load_strategy": "append"
+  }
+}

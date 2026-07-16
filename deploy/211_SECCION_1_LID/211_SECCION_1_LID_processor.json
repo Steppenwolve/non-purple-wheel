@@ -1,0 +1,41 @@
+{
+  "processor_name": "SECCION_1_LID",
+  "enabled": true,
+  "file_pattern": "^SECCION_1_LID.*\\.xlsx?$",
+  "file_type": "excel",
+  "read_options": {
+    "sheet_name": 0
+  },
+  "data_mapping": {
+    "generate_uuid_if_id_missing": true,
+    "column_map": {
+      "TIPO_ACTIVO": "TIPO_ACTIVO",
+      "SALDO_ID":    "SALDO_ID",
+      "MONEDA":      "MONEDA",
+      "FECHA_INFO":  "FECHA_INFO"
+    },
+    "type_conversions": {
+      "date_fields": [
+        "FECHA_INFO"
+      ],
+      "numeric_fields": [
+        "TIPO_ACTIVO",
+        "SALDO_ID"
+      ],
+      "allow_empty": true
+    },
+    "final_db_columns": [
+      "ID",
+      "TIPO_ACTIVO",
+      "SALDO_ID",
+      "MONEDA",
+      "FECHA_INFO",
+      "FECHA_EXTRACCION"
+    ]
+  },
+  "db_config": {
+    "schema": "LMDA",
+    "table_name": "SECCION_1_LID",
+    "load_strategy": "append"
+  }
+}

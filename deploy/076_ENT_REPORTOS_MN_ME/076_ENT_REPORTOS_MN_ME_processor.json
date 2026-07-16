@@ -51,14 +51,17 @@
       "CUSTODIO":                      "CUSTODIO",
       "FECHAVALOR":                    "FECHAVALOR",
       "CLIENTE":                       "CLIENTE",
-      "RESTRICCION":                   "RESTRICCION"
+      "RESTRICCION":                   "RESTRICCION",
+      "TIPOTASAPREMIO":                "TIPOTASAPREMIO",
+      "FECHA_INFO":                    "FECHA_INFO"
     },
     "type_conversions": {
       "date_fields": [
         "FECHACONCERTACION",
         "FECHAINICIO",
         "FECHAVENCIMIENTO",
-        "FECHAVENCIMIENTO_TITULO"
+        "FECHAVENCIMIENTO_TITULO",
+        "FECHA_INFO"
       ],
       "numeric_fields": [
         "HORACONCERTACION",
@@ -124,6 +127,8 @@
       "FECHAVALOR",
       "CLIENTE",
       "RESTRICCION",
+      "TIPOTASAPREMIO",
+      "FECHA_INFO",
       "FECHA_EXTRACCION"
     ]
   },
