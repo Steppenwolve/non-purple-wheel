@@ -1,0 +1,215 @@
+-- ============================================================
+-- AJUSTE PROD v2  SILVER.dbo.008_ENT_GARANTIA
+--   (incluye fix PRELACION/MONEDA por texto + fechas blindadas con TRY_CONVERT)
+-- Fix: error "Conversion failed when converting the nvarchar value
+--      'Prelación de Pago Preferente' to data type int."
+--
+-- Causa: dos CASE comparaban una COLUMNA DE TEXTO contra un literal INT,
+--        forzando conversion implicita del texto a int:
+--          - PRELACION_GAR: C.PRELACION (nvarchar) = 1 / = 2   -> REVIENTA
+--          - MONEDA_GAR   : A.COD_MONEDA (varchar) = 1 / = 9   -> riesgo latente
+-- Solucion: comparar TEXTO contra TEXTO (= N'...').
+--
+-- Valores reales observados:
+--   PRELACION  : '1', 'No Aplica', 'Prelación de Pago Preferente'
+--   COD_MONEDA : '1', '9'
+-- Mapeo PRELACION: '1' y 'Prelación de Pago Preferente' -> 1 (preferente);
+--                  'No Aplica' y otros -> 0. (Se conserva rama '2' por si aparece.)
+--
+-- Unico cambio vs. el SP actual: los dos bloques CASE marcados abajo.
+-- El resto del procedimiento queda identico.
+-- ============================================================
+USE [SILVER]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROCEDURE [dbo].[008_ENT_GARANTIA] @CorreoNotificacion NVARCHAR(255) = NULL,
+	@PerfilCorreo NVARCHAR(255) = NULL,
+	@ProgramadorJob NVARCHAR(128) = NULL,
+	@FechaSistema DATETIME
+AS
+BEGIN
+	SET NOCOUNT ON;
+	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+	DECLARE @SQL NVARCHAR(MAX);
+	DECLARE @MensajeError NVARCHAR(MAX) = '';
+	DECLARE @ExitoEjecucion BIT = 1;
+	DECLARE @FilasInsertadas INT = 0;
+	DECLARE @LogMessage NVARCHAR(MAX) = '';
+	DECLARE @DetallesLog NVARCHAR(MAX) = '';
+	DECLARE @FechaInicio DATETIME = GETDATE();
+	DECLARE @FilasEliminadas INT = 0;
+	DECLARE @FechaIni DATE,
+		@FechaFin DATE;
+	DECLARE @NombreJob NVARCHAR(128) = '[008_ENT_GARANTIA]';
+
+	BEGIN TRY
+		SET @FechaIni = datefromparts(year(@FechaSistema), month(@FechaSistema), 1)
+		SET @FechaFin = Dateadd(month, 1, @FechaIni) --------------------------------------------------------------------------------
+			-- QUERY
+
+		IF EXISTS (
+				SELECT ID
+				FROM [SILVER].[RR].[008_ENT_GARANTIA]
+				WHERE [FECHA_INFO] >= @FechaIni
+					AND [FECHA_INFO] < @FechaFin
+				)
+		BEGIN
+			DELETE
+			FROM [SILVER].[RR].[008_ENT_GARANTIA]
+			WHERE [FECHA_INFO] >= @FechaIni
+				AND [FECHA_INFO] < @FechaFin;
+
+			SET @FilasEliminadas = @@ROWCOUNT;
+			SET @LogMessage = 'Registros eliminados: ' + CAST(@FilasEliminadas AS NVARCHAR(10));
+
+			PRINT @LogMessage;
+
+			SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+		END
+
+		INSERT INTO [SILVER].[RR].[008_ENT_GARANTIA] (
+			[ID_GARANTIA],
+			[TIPO_GARANTIA],
+			[FECHA_ULT_ACTUALIZACION],
+			[MONEDA_GAR],
+			[PRELACION_GAR],
+			[MONTO_GAR],
+			[FECHA_ULT_AVALUO],
+			[LOCALIDAD_GARANTIA_INM],
+			[DESCRIPCION_GARANTIA],
+			[GRADO_REISGP],
+			[FECHA_INFO]
+			)
+		SELECT
+			A.NUM_GARANTIA AS ID_GARANTIA,
+			CASE
+				WHEN A.TIP_GARANTIA = 'HIP' THEN 53
+				WHEN A.TIP_GARANTIA = 'FID' THEN 55
+			END AS TIPO_GARANTIA, --CATALOGO
+			-- >>> FIX v2: conversion defensiva de fecha (linked server); nunca truena
+			COALESCE(TRY_CONVERT(date, A.FEC_AVALUO), CAST('1900-01-01' AS date))
+			AS FECHA_ULT_ACTUALIZACION,
+			-- >>> FIX: COD_MONEDA es varchar -> comparar texto contra texto
+			CASE
+				WHEN A.COD_MONEDA = N'1' THEN 0
+				WHEN A.COD_MONEDA = N'9' THEN 200
+			END AS MONEDA_GAR, -- CATALOGO
+			-- >>> FIX: PRELACION es nvarchar (trae descripciones) -> comparar texto contra texto
+			CASE
+				WHEN C.PRELACION = N'1' THEN 1
+				WHEN C.PRELACION = N'Prelación de Pago Preferente' THEN 1
+				WHEN C.PRELACION = N'2' THEN 2
+				ELSE 0
+			END AS PRELACION_GAR, -- CATALOGO
+			ISNULL(A.MON_GARANTIA,0) AS MONTO_GAR,
+			-- >>> FIX v2: conversion defensiva (nullable)
+			TRY_CONVERT(date, A.FEC_AVALUO) AS FECHA_ULT_AVALUO,
+			CONCAT('484',
+				IIF(D.COD_PAIS IS NULL, '00', D.COD_PAIS),
+				IIF(D.COD_PROVINCIA IS NULL, '000', D.COD_PROVINCIA),
+				'0001') AS LOCALIDAD_GARANTIA_INM,
+			NULL AS DESCRIPCION_GARANTIA,
+			NULL AS GRADO_REISGP,
+			EOMONTH(@FECHASISTEMA)AS FECHA_INFO
+		FROM BRONZE.SAF.PR_GARANTIAS A
+		LEFT JOIN BRONZE.SAF.PR_CREDITOS B ON A.COD_CLIENTE = B.COD_CLIENTE
+		LEFT JOIN BRONZE.INF.CREDITO_EMPRESARIAL C ON B.ID_EXTERNO = C.IDCREDITO
+		LEFT JOIN BRONZE.SAF.PR_GARANTIAS_HIPOTECARIAS D ON A.NUM_GARANTIA = D.NUM_GARANTIA
+		WHERE A.FEC_AVALUO IS NOT NULL
+		AND B.IND_ESTADO = 'D'
+		AND B.IND_LINEA = 'N'
+		AND B.NUM_DESC_TIPO_CREDITO IN (/*COM*/12,13,14,15,28,2,5,18,27)
+		AND A.IND_ESTADO = 'A'
+		---------------------------------------------------------------------------------------------
+		SET @FilasInsertadas = @@ROWCOUNT;
+		SET @LogMessage = 'Proceso completado. Filas totales: ' + CAST(@FilasInsertadas AS NVARCHAR(10));
+
+		PRINT @LogMessage;
+
+		SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+	END TRY
+
+	BEGIN CATCH
+		SET @ExitoEjecucion = 0;
+		SET @MensajeError = ERROR_MESSAGE();
+		SET @LogMessage = 'Error durante la ejecución: ' + @MensajeError;
+
+		PRINT @LogMessage;
+
+		SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+	END CATCH -- Preparar el mensaje detallado para la alerta
+
+	DECLARE @Asunto NVARCHAR(255);
+	DECLARE @Cuerpo NVARCHAR(MAX);
+	DECLARE @FechaFinalizacion DATETIME = GETDATE();
+	DECLARE @DuracionEjecucion VARCHAR(20) = CAST(DATEDIFF(SECOND, @FechaInicio, @FechaFinalizacion) AS VARCHAR(10)) + ' segundos';
+
+	-- Solo enviar alerta si hay un error
+	IF @ExitoEjecucion = 0
+		AND @CorreoNotificacion IS NOT NULL
+		AND @PerfilCorreo IS NOT NULL
+	BEGIN
+		SET @Asunto = 'ALERTA: Error en ' + ISNULL(@NombreJob, 'Job Desconocido');
+		SET @Cuerpo = 'Se ha producido un error durante la ejecución de.' + @NombreJob + CHAR(13) + CHAR(10) + CHAR(13) + CHAR(10) + 'Detalles del Job:' + CHAR(13) + CHAR(10) + '- Nombre del Job: ' + ISNULL(@NombreJob, 'No especificado') + CHAR(13) + CHAR(10) + '- Programado por: ' + ISNULL(@ProgramadorJob, 'No especificado') + CHAR(13) + CHAR(10) + '- Fecha y hora de inicio: ' + CONVERT(VARCHAR, @FechaInicio, 120) + CHAR(13) + CHAR(10) + '- Fecha y hora de finalización: ' + CONVERT(VARCHAR, @FechaFinalizacion, 120) + CHAR(13) + CHAR(10) + '- Duración de la ejecución: ' + @DuracionEjecucion + CHAR(13) + CHAR(10) + CHAR(13) + CHAR(10) + 'Detalles de la Ejecución:' + CHAR(13) + CHAR(10) + 'Mensaje de Error:' + CHAR(13) + CHAR(10) + @MensajeError + CHAR(13) + CHAR(10) + CHAR(13) + CHAR(10) + 'Log de Ejecución:' + CHAR(13) + CHAR(10) + @DetallesLog;
+
+		BEGIN TRY
+			EXEC msdb.dbo.sp_send_dbmail @profile_name = @PerfilCorreo,
+				@recipients = @CorreoNotificacion,
+				@subject = @Asunto,
+				@body = @Cuerpo,
+				@body_format = 'TEXT',
+				@importance = 'High';
+
+			SET @LogMessage = 'Alerta de error enviada exitosamente.';
+
+			PRINT @LogMessage;
+
+			SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+		END TRY
+
+		BEGIN CATCH
+			SET @LogMessage = 'Error al enviar alerta: ' + ERROR_MESSAGE();
+
+			PRINT @LogMessage;
+
+			SET @DetallesLog = @DetallesLog + @LogMessage + CHAR(13) + CHAR(10);
+		END CATCH
+	END -- Registrar en la tabla de log
+
+	INSERT INTO dbo.LogSilverDiario (
+		FechaEjecucion,
+		FilasInsertadas,
+		EstadoEjecucion,
+		MensajeError,
+		DetallesLog,
+		NombreJob,
+		ProgramadorJob
+		)
+	VALUES (
+		@FechaInicio,
+		@FilasInsertadas,
+		CASE
+			WHEN @ExitoEjecucion = 1
+				THEN 'Exitoso'
+			ELSE 'Error'
+			END,
+		CASE
+			WHEN @ExitoEjecucion = 1
+				THEN NULL
+			ELSE @MensajeError
+			END,
+		@DetallesLog,
+		@NombreJob,
+		@ProgramadorJob
+		);
+
+	SET @LogMessage = 'Proceso completado y registrado en la tabla de log.';
+
+	PRINT @LogMessage;
+END;
+GO

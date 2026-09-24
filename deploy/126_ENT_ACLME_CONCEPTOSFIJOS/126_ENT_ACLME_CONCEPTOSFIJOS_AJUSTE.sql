@@ -5,15 +5,17 @@
 -- Destino  : SILVER.RR.126_ENT_ACLME_CONCEPTOSFIJOS   Frecuencia: Diaria
 --
 -- Transformacion (BRONZE -> SILVER):
---   * Se asigna un CONCEPTO a cada movimiento por (MONEDA, TIPO_OPERACION),
---     via catalogo BRONZE.RR.CATALOGO_CONCEPTOS_PLAZO_FIJO_ACLME (no hardcodeado).
---       USD + (SW|FX) -> 9725 Compras de Spots
---       MXN + FX      -> 9730 Ventas de Spots
---       USD + FW      -> 9890 Compras de Forwards
---       MXN + FW      -> 9900 Venta de Forwards
---     (SW+MXN no mapea -> se descarta; swaps 9895/9910 no se producen, segun reglas)
---   * IMPORTE = SUM(MONTO) agrupado por CONCEPTO (NO se agrupa por INSTITUCION).
+--   * Se asigna un CONCEPTO a cada movimiento por (TIPO_OPERACION, MONEDA, MONEDA_MXN),
+--     via catalogo BRONZE.RR.CAT_ACLME_CONCEPTOS_FIJOS (no hardcodeado).
+--       FX  + USD + MXN -> 9725 COMPRA_SPOTS
+--       SW  + USD + MXN -> 9725 COMPRA_SPOTS
+--       FX  + MXN + USD -> 9730 VENTA_SPOTS
+--       FW  + USD + MXN -> 9890 COMPRA_FORWARDS
+--       FW  + MXN + USD -> 9900 VENTA_FORWARDS
+--     (Operaciones sin match en el catalogo se descartan por INNER JOIN)
+--   * IMPORTE = SUM(MONTO) agrupado por CONCEPTO. MONTO esta en USD.
 --   * MONEDA='USD' fija ; RESERVAS='N/A' (se guarda 0, ION emite 'N/A') ; FECHA_INFO=FechaReporte.
+--   * DESCRIPCION = OPERACION del catalogo (ej. COMPRA_SPOTS).
 --   * Auxiliares persistidos por fila-concepto: DESCRIPCION y MOVIMIENTOS (conteo).
 --   * Alcance entrada (Opcion A): lote del dia por FECHA_EXTRACCION = FechaReporte.
 -- ============================================================
@@ -44,9 +46,9 @@ BEGIN
         [DESCRIPCION]      varchar(100)     NULL,     -- auxiliar
         [MOVIMIENTOS]      int              NULL,     -- auxiliar (conteo de movimientos sumados)
         [INSTITUCION]      numeric(6,0)     NOT NULL CONSTRAINT [DF_RR_126_CF_INSTITUCION] DEFAULT (0),
-        [IMPORTE]          numeric(15,8)    NOT NULL,
+        [IMPORTE]          numeric(23,8)    NOT NULL,   -- 15 enteros + 8 decimales (el SUM en prod llega a 10 enteros)
         [MONEDA]           varchar(3)       NOT NULL,
-        [RESERVAS]         numeric(15,8)    NULL,
+        [RESERVAS]         numeric(23,8)    NULL,
         [FECHA_INFO]       date             NOT NULL,
         [FECHA_EXTRACCION] smalldatetime    NOT NULL CONSTRAINT [DF_RR_126_CF_FE] DEFAULT (GETDATE())
     );
@@ -64,40 +66,49 @@ GO
 IF COL_LENGTH('RR.126_ENT_ACLME_CONCEPTOSFIJOS','MOVIMIENTOS') IS NULL
     ALTER TABLE [RR].[126_ENT_ACLME_CONCEPTOSFIJOS] ADD [MOVIMIENTOS] int NULL;
 GO
+-- IMPORTE/RESERVAS: ampliar a numeric(23,8) si vienen como (15,8) (evita overflow del SUM en prod)
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='126_ENT_ACLME_CONCEPTOSFIJOS' AND COLUMN_NAME='IMPORTE' AND NUMERIC_PRECISION<23)
+    ALTER TABLE [RR].[126_ENT_ACLME_CONCEPTOSFIJOS] ALTER COLUMN [IMPORTE] numeric(23,8) NOT NULL;
+GO
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='126_ENT_ACLME_CONCEPTOSFIJOS' AND COLUMN_NAME='RESERVAS' AND NUMERIC_PRECISION<23)
+    ALTER TABLE [RR].[126_ENT_ACLME_CONCEPTOSFIJOS] ALTER COLUMN [RESERVAS] numeric(23,8) NULL;
+GO
 
 -- ============================================================
--- SECTION 01C | BRONZE.[RR].[CATALOGO_CONCEPTOS_PLAZO_FIJO_ACLME]
---   Mapeo (MONEDA, TIPO_OPERACION) -> CONCEPTO. El SP hace JOIN (no hardcodeo).
+-- SECTION 01C | BRONZE.[RR].[CAT_ACLME_CONCEPTOS_FIJOS]
+--   Mapeo (TIPO_OPERACION, MONEDA, MONEDA_MXN) -> CONCEPTO + OPERACION.
+--   DESCRIPCION en SILVER = OPERACION del catalogo.
 -- ============================================================
 USE [BRONZE]
 GO
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='CATALOGO_CONCEPTOS_PLAZO_FIJO_ACLME')
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='RR' AND TABLE_NAME='CAT_ACLME_CONCEPTOS_FIJOS')
 BEGIN
-    CREATE TABLE [RR].[CATALOGO_CONCEPTOS_PLAZO_FIJO_ACLME] (
-        [MONEDA]         varchar(3)   NOT NULL,
-        [TIPO_OPERACION] varchar(5)   NOT NULL,
-        [CONCEPTO]       numeric(5,0) NOT NULL,
-        [DESCRIPCION]    varchar(100) NOT NULL,
-        CONSTRAINT [PK_RR_CAT_CONCEPTOS_PLAZO_FIJO_ACLME] PRIMARY KEY ([MONEDA],[TIPO_OPERACION])
+    CREATE TABLE [RR].[CAT_ACLME_CONCEPTOS_FIJOS] (
+        [CONCEPTO]       int          NOT NULL,
+        [OPERACION]      varchar(50)  NOT NULL,
+        [TIPO_OPERACION] varchar(10)  NOT NULL,
+        [MONEDA]         varchar(10)  NOT NULL,
+        [MONEDA_MXN]     varchar(10)  NOT NULL,
+        CONSTRAINT [PK_RR_CAT_ACLME_CONCEPTOS_FIJOS] PRIMARY KEY ([TIPO_OPERACION],[MONEDA],[MONEDA_MXN])
     );
-    PRINT 'BRONZE.RR.CATALOGO_CONCEPTOS_PLAZO_FIJO_ACLME creada.';
+    PRINT 'BRONZE.RR.CAT_ACLME_CONCEPTOS_FIJOS creada.';
 END
 ELSE
-    PRINT 'BRONZE.RR.CATALOGO_CONCEPTOS_PLAZO_FIJO_ACLME ya existe.';
+    PRINT 'BRONZE.RR.CAT_ACLME_CONCEPTOS_FIJOS ya existe.';
 GO
-MERGE [RR].[CATALOGO_CONCEPTOS_PLAZO_FIJO_ACLME] AS t
+MERGE [RR].[CAT_ACLME_CONCEPTOS_FIJOS] AS t
 USING (VALUES
-    ('USD','SW',9725,'Compras de Spots'),
-    ('USD','FX',9725,'Compras de Spots'),
-    ('MXN','FX',9730,'Ventas de Spots'),
-    ('USD','FW',9890,'Compras de Forwards'),
-    ('MXN','FW',9900,'Venta de Forwards')
-) AS s([MONEDA],[TIPO_OPERACION],[CONCEPTO],[DESCRIPCION])
-ON t.[MONEDA]=s.[MONEDA] AND t.[TIPO_OPERACION]=s.[TIPO_OPERACION]
-WHEN MATCHED THEN UPDATE SET t.[CONCEPTO]=s.[CONCEPTO], t.[DESCRIPCION]=s.[DESCRIPCION]
-WHEN NOT MATCHED THEN INSERT ([MONEDA],[TIPO_OPERACION],[CONCEPTO],[DESCRIPCION])
-    VALUES (s.[MONEDA],s.[TIPO_OPERACION],s.[CONCEPTO],s.[DESCRIPCION]);
-PRINT 'Catalogo de conceptos poblado.';
+    (9725, 'COMPRA_SPOTS',    'SW', 'USD', 'MXN'),
+    (9725, 'COMPRA_SPOTS',    'FX', 'USD', 'MXN'),
+    (9730, 'VENTA_SPOTS',     'FX', 'MXN', 'USD'),
+    (9890, 'COMPRA_FORWARDS', 'FW', 'USD', 'MXN'),
+    (9900, 'VENTA_FORWARDS',  'FW', 'MXN', 'USD')
+) AS s([CONCEPTO],[OPERACION],[TIPO_OPERACION],[MONEDA],[MONEDA_MXN])
+ON t.[TIPO_OPERACION]=s.[TIPO_OPERACION] AND t.[MONEDA]=s.[MONEDA] AND t.[MONEDA_MXN]=s.[MONEDA_MXN]
+WHEN MATCHED THEN UPDATE SET t.[CONCEPTO]=s.[CONCEPTO], t.[OPERACION]=s.[OPERACION]
+WHEN NOT MATCHED THEN INSERT ([CONCEPTO],[OPERACION],[TIPO_OPERACION],[MONEDA],[MONEDA_MXN])
+    VALUES (s.[CONCEPTO],s.[OPERACION],s.[TIPO_OPERACION],s.[MONEDA],s.[MONEDA_MXN]);
+PRINT 'Catalogo CAT_ACLME_CONCEPTOS_FIJOS poblado.';
 GO
 
 -- ============================================================
@@ -140,19 +151,21 @@ BEGIN
             [IMPORTE], [MONEDA], [RESERVAS], [FECHA_INFO]
         )
         SELECT
-            cat.[CONCEPTO],                 -- concepto (catalogo por MONEDA+TIPO_OPERACION)
-            cat.[DESCRIPCION],              -- auxiliar
+            C.[CONCEPTO],
+            C.[OPERACION],                  -- DESCRIPCION = OPERACION del catalogo
             COUNT(*),                       -- auxiliar: movimientos sumados
             MAX(A.[INSTITUCION]),           -- INSTITUCION (constante por corrida; no es llave de agrupacion)
-            SUM(A.[MONTO]),                 -- IMPORTE = suma del monto por concepto
+            SUM(A.[MONTO]),                 -- IMPORTE = suma del monto en USD por concepto
             'USD',                          -- MONEDA (constante)
             0,                              -- RESERVAS: fijo (se guarda 0; ION emite 'N/A')
             @FechaRef                       -- FECHA_INFO
         FROM [BRONZE].[LMDA].[ACLME] A
-        INNER JOIN [BRONZE].[RR].[CATALOGO_CONCEPTOS_PLAZO_FIJO_ACLME] cat
-                ON cat.[MONEDA] = A.[MONEDA] AND cat.[TIPO_OPERACION] = A.[TIPO_OPERACION]
+        INNER JOIN [BRONZE].[RR].[CAT_ACLME_CONCEPTOS_FIJOS] C
+                ON A.[TIPO_OPERACION] = C.[TIPO_OPERACION]
+               AND A.[MONEDA]         = C.[MONEDA]
+               AND A.[MONEDA_MXN]     = C.[MONEDA_MXN]
         WHERE CAST(A.[FECHA_EXTRACCION] AS DATE) = @FechaRef      -- Opcion A: lote del dia
-        GROUP BY cat.[CONCEPTO], cat.[DESCRIPCION];              -- NO se agrupa por INSTITUCION
+        GROUP BY C.[CONCEPTO], C.[OPERACION];
 
         SET @FilasInsertadas = @@ROWCOUNT;
         SET @LogMessage = 'Proceso completado. Filas totales: ' + CAST(@FilasInsertadas AS NVARCHAR(10));
